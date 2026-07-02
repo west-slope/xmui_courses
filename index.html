@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XMUI Courses 文件预览</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --surface-soft: #eef4f7;
+      --text: #162333;
+      --muted: #667386;
+      --line: #dce4ec;
+      --accent: #0f766e;
+      --accent-strong: #0a5f59;
+      --folder: #255c99;
+      --shadow: 0 16px 40px rgba(22, 35, 51, .12);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(260px, 430px) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 14px 22px;
+      background: rgba(255, 255, 255, .94);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(14px);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .search { position: relative; }
+
+    .search input {
+      width: 100%;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0 40px 0 14px;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+    }
+
+    .search input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, .16);
+    }
+
+    .search svg {
+      position: absolute;
+      right: 13px;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .actions,
+    .preview-actions,
+    .notice-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .actions { justify-content: flex-end; }
+    .preview-actions { justify-content: flex-end; }
+    .notice-actions { justify-content: center; }
+
+    .icon-button,
+    .text-button {
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      transition: .16s ease;
+    }
+
+    .icon-button { width: 38px; }
+
+    .text-button {
+      padding: 0 12px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .icon-button:hover,
+    .text-button:hover,
+    .file-row:hover,
+    .folder-summary:hover {
+      border-color: rgba(15, 118, 110, .42);
+      background: #f0fbf8;
+    }
+
+    .icon-button svg,
+    .text-button svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .primary:hover {
+      background: var(--accent-strong);
+      border-color: var(--accent-strong);
+    }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+    }
+
+    .sidebar {
+      min-height: 0;
+      border-right: 1px solid var(--line);
+      background: var(--surface);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .filters {
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 6px 11px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .chip.active {
+      color: #fff;
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .tree-wrap {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .file-tree {
+      min-height: 0;
+      overflow: auto;
+      padding: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(15, 118, 110, .6) #e6edf3;
+    }
+
+    .file-tree::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    .file-tree::-webkit-scrollbar-track {
+      background: #e6edf3;
+      border-radius: 999px;
+    }
+
+    .file-tree::-webkit-scrollbar-thumb {
+      background: rgba(15, 118, 110, .62);
+      border: 3px solid #e6edf3;
+      border-radius: 999px;
+    }
+
+    .file-tree::-webkit-scrollbar-thumb:hover {
+      background: rgba(15, 118, 110, .86);
+    }
+
+    .folder {
+      margin: 0 0 4px;
+    }
+
+    .folder-summary {
+      list-style: none;
+      min-height: 38px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      padding: 7px 9px;
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      color: var(--text);
+      user-select: none;
+    }
+
+    .folder-summary::-webkit-details-marker { display: none; }
+
+    .folder-summary .chevron {
+      width: 18px;
+      height: 18px;
+      color: var(--muted);
+      transition: transform .16s ease;
+    }
+
+    details[open] > .folder-summary .chevron {
+      transform: rotate(90deg);
+    }
+
+    .folder-name {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .folder-count {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .folder-children {
+      margin-left: 13px;
+      padding-left: 10px;
+      border-left: 1px solid var(--line);
+    }
+
+    .file-row {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      padding: 7px 9px;
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      text-align: left;
+      color: inherit;
+    }
+
+    .file-row.active {
+      border-color: rgba(15, 118, 110, .42);
+      background: #e6f7f3;
+    }
+
+    .folder-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-icon,
+    .folder-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: var(--surface-soft);
+      color: var(--accent);
+    }
+
+    .folder-icon { color: var(--folder); }
+    .file-icon svg, .folder-icon svg { width: 16px; height: 16px; }
+
+    .file-name {
+      min-width: 0;
+      display: block;
+      font-size: 13px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .file-meta {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 0 12px 12px;
+    }
+
+    .status strong { color: var(--text); }
+
+    .workspace {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .preview-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .preview-title { min-width: 0; }
+
+    .preview-title h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .preview-title p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .viewer {
+      min-height: 0;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .viewer-frame {
+      width: 100%;
+      height: calc(100vh - 150px);
+      min-height: 460px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .viewer-frame iframe,
+    .viewer-frame video,
+    .viewer-frame img {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #111827;
+    }
+
+    .viewer-frame img {
+      object-fit: contain;
+      background: #101828;
+    }
+
+    .text-preview {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      padding: 18px;
+      overflow: auto;
+      color: #182334;
+      background: #fff;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 14px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    .empty,
+    .notice {
+      max-width: 720px;
+      margin: 72px auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .empty svg,
+    .notice svg {
+      width: 44px;
+      height: 44px;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .empty h2,
+    .notice h2 {
+      margin: 0 0 8px;
+      font-size: 21px;
+    }
+
+    .empty p,
+    .notice p {
+      margin: 0 auto 18px;
+      color: var(--muted);
+      max-width: 560px;
+    }
+
+    @media (max-width: 920px) {
+      .topbar {
+        grid-template-columns: 1fr auto;
+      }
+
+      .search {
+        grid-column: 1 / -1;
+        order: 3;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: 42vh minmax(0, 1fr);
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .preview-head { grid-template-columns: 1fr; }
+      .preview-actions { justify-content: flex-start; }
+
+      .viewer-frame {
+        height: 62vh;
+        min-height: 360px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar {
+        padding: 12px;
+        gap: 10px;
+      }
+
+      .brand h1 { font-size: 18px; }
+      .brand p { display: none; }
+
+      .actions .text-button span,
+      .preview-actions .text-button span,
+      .notice-actions .text-button span {
+        display: none;
+      }
+
+      .text-button {
+        width: 38px;
+        padding: 0;
+      }
+
+      .viewer { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>XMUI Courses</h1>
+        <p>课程资料浏览与文件预览</p>
+      </div>
+      <label class="search" title="搜索课程、文件名或扩展名">
+        <input id="searchInput" type="search" placeholder="搜索课程、文件名、pdf、pptx...">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+      </label>
+      <nav class="actions" aria-label="页面操作">
+        <a class="icon-button" href="https://github.com/west-slope/xmui_courses" target="_blank" rel="noreferrer" title="打开 GitHub 仓库">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6.01 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.48 5.93.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z"/></svg>
+        </a>
+        <button class="icon-button" id="refreshBtn" type="button" title="在线刷新文件列表">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5m-5 4a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="filters" id="filters" aria-label="文件类型筛选"></div>
+        <div class="tree-wrap">
+          <div class="file-tree" id="fileTree" aria-label="按文件夹归纳的资料"></div>
+          <div class="status" id="status">正在整理文件夹...</div>
+        </div>
+      </aside>
+
+      <section class="workspace" aria-live="polite">
+        <div class="preview-head">
+          <div class="preview-title">
+            <h2 id="previewName">选择一个文件开始预览</h2>
+            <p id="previewPath">左侧已按你的仓库文件夹归纳；页面不会自动打开第一个文件。</p>
+          </div>
+          <div class="preview-actions" id="previewActions"></div>
+        </div>
+        <div class="viewer" id="viewer">
+          <div class="empty">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5m0-2A2.5 2.5 0 0 0 6.5 22H20M8 6h8M8 10h8m-8 4h5"/></svg>
+            <h2>课程资料就绪</h2>
+            <p>展开左侧文件夹后选择资料。PDF、图片、视频和文本会直接显示，Office 文件会用在线预览器打开。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const REPO = "west-slope/xmui_courses";
+    const BRANCH = "main";
+    const GENERATED_AT = "2026-07-02T15:04:45.584Z";
+    const EMBEDDED_FILES = [{"path":"大一上/大学语文/大学语文-总结 - 2025（期末）.pdf","size":931470},{"path":"大一上/大学语文/jxy期中作文.png","size":82927},{"path":"大一上/劳动教育学分/20250926劳动教育学分解读.pptx","size":2947688},{"path":"大一上/劳动教育学分/厦门大学信息学院“新时代中国特色社会主义劳动教育”本科生必修课实践学时安排及认定细则（2024年12月）.pdf","size":221611},{"path":"大一上/思想道德与法治/分数占比.jpg","size":1982725},{"path":"大一上/思想道德与法治/课件/第二专题 全面依法治国   建设法治中国(5).pdf","size":566434},{"path":"大一上/思想道德与法治/课件/第三专题  学习宪法知识 维护宪法权威(5).pdf","size":528315},{"path":"大一上/思想道德与法治/课件/第四专题     依法行使权利 自觉履行义务(3).pdf","size":1300823},{"path":"大一上/思想道德与法治/课件/第五专题   遵守道德规范  锤炼道德品格(5).pdf","size":6832397},{"path":"大一上/思想道德与法治/课件/第一专题   学习法律知识  建设法治国家(5).pdf","size":947436},{"path":"大一上/思想道德与法治/期末材料/1_2022.6の思修期末冲刺(1).pdf","size":306099},{"path":"大一上/思想道德与法治/期末材料/背诵.docx","size":18349},{"path":"大一上/思想道德与法治/期末材料/布丁扫描2024-05-31 20.23.57(1).pdf","size":2814674},{"path":"大一上/思想道德与法治/期末材料/考试例题（仅供了解题型用）.docx","size":18587},{"path":"大一上/思想道德与法治/期末材料/期末试卷2018201901模拟卷(1).pdf","size":284172},{"path":"大一上/思想道德与法治/期末材料/期末试卷2018201901模拟卷（参考答案）.pdf","size":257068},{"path":"大一上/思想道德与法治/期末材料/思想教育课件：专题二 坚定理想信念.pdf","size":2715674},{"path":"大一上/思想道德与法治/期末材料/思想教育课件：专题三 弘扬中国精神.pdf","size":1635205},{"path":"大一上/思想道德与法治/期末材料/思想教育课件：专题四 明确价值要求.pdf","size":1291274},{"path":"大一上/思想道德与法治/期末材料/思想教育课件：专题一 领悟人生真谛.pdf","size":3284730},{"path":"大一上/思想道德与法治/期末材料/思修《思想道德修养与法律基础》思考题参考答案.docx","size":33510},{"path":"大一上/思想道德与法治/期末材料/思修复习.docx","size":151184},{"path":"大一上/思想道德与法治/期末材料/思修期末考试A卷(2020.6.10)(答案自己乱写的).pdf","size":476758},{"path":"大一上/思想道德与法治/期末材料/思修思考30题总结.pdf","size":486041},{"path":"大一上/思想道德与法治/期末材料/思政提纲.docx","size":52066},{"path":"大一上/思想道德与法治/期末材料/思政提纲.pdf","size":4227921},{"path":"大一上/思想道德与法治/期末材料/题库.doc","size":457216},{"path":"大一上/思想道德与法治/学习资料/陈嘉庚筹办厦门大学演词(4).pdf","size":73156},{"path":"大一上/思想道德与法治/学习资料/党的十九大报告全文(7).pdf","size":470749},{"path":"大一上/思想道德与法治/学习资料/二十报告全文(7).pdf","size":363749},{"path":"大一上/思想道德与法治/学习资料/二十届二中全会公报(4).pdf","size":106939},{"path":"大一上/思想道德与法治/学习资料/法治中国建设规划(4).pdf","size":285858},{"path":"大一上/思想道德与法治/学习资料/沈阳一男子改名(3).pdf","size":23202},{"path":"大一上/思想道德与法治/学习资料/习近平法治思想(4).pdf","size":116702},{"path":"大一上/思想道德与法治/学习资料/习近平讲述的法治故事(4).pdf","size":132194},{"path":"大一上/思想道德与法治/学习资料/宪法全文(7).pdf","size":263610},{"path":"大一上/思想道德与法治/学习资料/新时代公民道德建设实施纲要(7).pdf","size":446872},{"path":"大一上/思想道德与法治/学习资料/中共十九届四中全会决定全文(3).pdf","size":299564},{"path":"大一上/思想道德与法治/学习资料/中共中央法治社会建设实施纲要2020--2025(7).pdf","size":385938},{"path":"大一上/思想道德与法治/学习资料/中共中央关于全面推进依法治国若干重大问题的决定(7).pdf","size":576040},{"path":"大一上/思想道德与法治/学习资料/中共中央国务院印发法治政府建设实施纲要2021－2025年(7).pdf","size":219950},{"path":"大一上/思想道德与法治/学习资料/中国共产党中央委员会关于修改宪法部分内容的建议(7).pdf","size":265834},{"path":"大一上/思想道德与法治/学习资料/中华人民共和国国歌法(7).pdf","size":74374},{"path":"大一上/思想道德与法治/学习资料/中华人民共和国监察法(7).pdf","size":177263},{"path":"大一上/思想道德与法治/学习资料/中华人民共和国民法典(7).pdf","size":666628},{"path":"大一上/思想道德与法治/README.md","size":0},{"path":"大一上/微积分I-1/《高等数学习题全解指南》（第7版）上册，同济大学数学系.pdf","size":43022069},{"path":"大一上/微积分I-1/课件(bzf)/1_第一章练习(1).pdf","size":106178},{"path":"大一上/微积分I-1/课件(bzf)/1_第一章练习参考答案(1).pdf","size":192931},{"path":"大一上/微积分I-1/课件(bzf)/1.10 闭区间上连续函数的性质.ppt","size":5025792},{"path":"大一上/微积分I-1/课件(bzf)/1.2数列的极限.ppt","size":12763136},{"path":"大一上/微积分I-1/课件(bzf)/1.3函数的极限.ppt","size":9851392},{"path":"大一上/微积分I-1/课件(bzf)/1.4无穷小与无穷大.ppt","size":5817344},{"path":"大一上/微积分I-1/课件(bzf)/1.5极限运算法则.ppt","size":15017984},{"path":"大一上/微积分I-1/课件(bzf)/1.6极限存在准则 两个重要极限.ppt","size":6858240},{"path":"大一上/微积分I-1/课件(bzf)/1.7无穷小的比较.ppt","size":6894080},{"path":"大一上/微积分I-1/课件(bzf)/1.8 函数的连续点与间断点.ppt","size":3923456},{"path":"大一上/微积分I-1/课件(bzf)/1.9 连续函数的运算与初等函数的连续性.ppt","size":6236160},{"path":"大一上/微积分I-1/课件(bzf)/2.1 导数概念.ppt","size":6226432},{"path":"大一上/微积分I-1/课件(bzf)/2.2 函数的求导法则.ppt","size":12209152},{"path":"大一上/微积分I-1/课件(bzf)/2.3 高阶导数.ppt","size":5625856},{"path":"大一上/微积分I-1/课件(bzf)/2.4 隐函数及由参数方程所确定的函数的导数 相关变化率.ppt","size":9407488},{"path":"大一上/微积分I-1/课件(bzf)/2.5 函数的微分.ppt","size":5579264},{"path":"大一上/微积分I-1/课件(bzf)/2025期中复习课.ppt","size":573952},{"path":"大一上/微积分I-1/课件(bzf)/3.1 微分中值定理.ppt","size":6693888},{"path":"大一上/微积分I-1/课件(bzf)/3.2 洛必达法则.ppt","size":6943232},{"path":"大一上/微积分I-1/课件(bzf)/3.3 泰勒公式.ppt","size":7219200},{"path":"大一上/微积分I-1/课件(bzf)/3.4函数的单调性与曲线的凹凸性.ppt","size":6065664},{"path":"大一上/微积分I-1/课件(bzf)/3.5函数的极值与最大值最小值.ppt","size":5126656},{"path":"大一上/微积分I-1/课件(bzf)/3.6函数图形的描绘.ppt","size":4725760},{"path":"大一上/微积分I-1/课件(bzf)/4.1不定积分的概念与性质.ppt","size":4547072},{"path":"大一上/微积分I-1/课件(bzf)/4.2.1换元积分法.pptx","size":18267363},{"path":"大一上/微积分I-1/课件(bzf)/4.2.2换元积分法.ppt","size":4660224},{"path":"大一上/微积分I-1/课件(bzf)/4.3分部积分法.ppt","size":3722752},{"path":"大一上/微积分I-1/课件(bzf)/4.4有理函数的积分.ppt","size":5805568},{"path":"大一上/微积分I-1/课件(bzf)/5.1 定积分的概念与性质.ppt","size":6085120},{"path":"大一上/微积分I-1/课件(bzf)/5.2 微积分的基本公式.ppt","size":4679168},{"path":"大一上/微积分I-1/课件(bzf)/5.3定积分换元法与分部积分法.ppt","size":8132096},{"path":"大一上/微积分I-1/课件(bzf)/5.4反常积分.ppt","size":4344832},{"path":"大一上/微积分I-1/课件(bzf)/5b6bd0b7eb02fc08936e1d32747a8779.jpg","size":341073},{"path":"大一上/微积分I-1/课件(bzf)/6.1 定积分的元素法.ppt","size":496640},{"path":"大一上/微积分I-1/课件(bzf)/6.2 定积分在几何学上的应用.ppt","size":16735744},{"path":"大一上/微积分I-1/课件(bzf)/关于中值问题.ppt","size":813056},{"path":"大一上/微积分I-1/课件(bzf)/习题课.ppt","size":2101760},{"path":"大一上/微积分I-1/课件(bzf)/习题课题目1.pptx","size":321736},{"path":"大一上/微积分I-1/课件(bzf)/D1习题课x.ppt","size":1031680},{"path":"大一上/微积分I-1/课件(bzf)/D4习题课.ppt","size":1835008},{"path":"大一上/微积分I-1/期末试卷/试卷/2015-2016 微积分I-1 期末 答案.doc","size":378368},{"path":"大一上/微积分I-1/期末试卷/试卷/2016-2017 微积分I-1 期末 答案.doc","size":576000},{"path":"大一上/微积分I-1/期末试卷/试卷/2016-2017学年第一学期微积分I-1期末试卷解答.pdf","size":487658},{"path":"大一上/微积分I-1/期末试卷/试卷/2017-2018学年第一学期微积分I-1期末试卷.pdf","size":371701},{"path":"大一上/微积分I-1/期末试卷/试卷/2017-2018学年第一学期微积分I-1期末试卷（A卷）.pdf","size":371701},{"path":"大一上/微积分I-1/期末试卷/试卷/2017-2018学年第一学期微积分I-1期末试卷（A卷）解答.pdf","size":244653},{"path":"大一上/微积分I-1/期末试卷/试卷/2017-2018学年第一学期微积分I-1期末试卷解答.pdf","size":234358},{"path":"大一上/微积分I-1/期末试卷/试卷/2018-2019学年第一学期微积分I-1期末试卷.pdf","size":253702},{"path":"大一上/微积分I-1/期末试卷/试卷/2018-2019学年第一学期微积分I-1期末试卷（A).pdf","size":253702},{"path":"大一上/微积分I-1/期末试卷/试卷/2018-2019学年第一学期微积分I-1期末试卷（A)答案.pdf","size":329256},{"path":"大一上/微积分I-1/期末试卷/试卷/2018-2019学年第一学期微积分I-1期末试卷解答.pdf","size":331105},{"path":"大一上/微积分I-1/期末试卷/试卷/2019-2020学年第一学期微积分I-1期末试卷.pdf","size":445109},{"path":"大一上/微积分I-1/期末试卷/试卷/2019-2020学年第一学期微积分I-1期末试卷（A卷).pdf","size":445109},{"path":"大一上/微积分I-1/期末试卷/试卷/2019-2020学年第一学期微积分I-1期末试卷答案.pdf","size":295161},{"path":"大一上/微积分I-1/期末试卷/试卷/2019-2020学年第一学期微积分I-1期末试卷解答.pdf","size":294544},{"path":"大一上/微积分I-1/期末试卷/试卷/2020-2021学年第一学期微积分I-1期末试卷.pdf","size":445504},{"path":"大一上/微积分I-1/期末试卷/试卷/2020-2021学年第一学期微积分I-1期末试卷解答.pdf","size":522383},{"path":"大一上/微积分I-1/期末试卷/试卷/2020-2021学年微积分I-1期末考试A卷.pdf","size":147744},{"path":"大一上/微积分I-1/期末试卷/试卷/2020-2021学年微积分I-1期末考试A卷答案.pdf","size":522383},{"path":"大一上/微积分I-1/期末试卷/试卷/2021-2022学年第一学期微积分I-1期末考试.pdf","size":220769},{"path":"大一上/微积分I-1/期末试卷/试卷/2021-2022学年第一学期微积分I-1期末考试答案.pdf","size":280669},{"path":"大一上/微积分I-1/期末试卷/试卷/2022-2023学年第一学期微积分I-1期末考试A卷评分标准.pdf","size":246738},{"path":"大一上/微积分I-1/期末试卷/试卷/2023-2024学年第一学期微积分I-1期末考试.pdf","size":220399},{"path":"大一上/微积分I-1/期末试卷/试卷/2023-2024学年第一学期微积分I-1期末考试解答.pdf","size":284682},{"path":"大一上/微积分I-1/期末试卷/试卷/2024-2025学年第一学期微积分I-1期末考试.pdf","size":212115},{"path":"大一上/微积分I-1/期末试卷/试卷/2024-2025学年第一学期微积分I-1期末考试解答.pdf","size":280177},{"path":"大一上/微积分I-1/期末试卷/试卷/2025-2026学年第一学期微积分I-1期末考试解答(1).pdf","size":421274},{"path":"大一上/微积分I-1/期末试卷/专题/历届期末试题选解（不定积分）.pdf","size":577524},{"path":"大一上/微积分I-1/期末试卷/专题/历届期末试题选解（定积分的计算）.pdf","size":754147},{"path":"大一上/微积分I-1/期末试卷/专题/历届期末试题选解（反常积分）.pdf","size":556225},{"path":"大一上/微积分I-1/期末试卷/专题/历届期末试题选解（与定积分相关的计算问题）.pdf","size":608917},{"path":"大一上/微积分I-1/期末试卷/专题/历届期末试题选解（与积分相关的计算问题）.pdf","size":605807},{"path":"大一上/微积分I-1/期末试卷/专题/历届期末试题选解（与积分相关的证明题）.pdf","size":638864},{"path":"大一上/微积分I-1/期末试卷/专题/试题选件三.mp4","size":10149554},{"path":"大一上/微积分I-1/期末试卷/专题/试题选讲二.mp4","size":12326557},{"path":"大一上/微积分I-1/期末试卷/专题/试题选讲六.mp4","size":12510978},{"path":"大一上/微积分I-1/期末试卷/专题/试题选讲七.mp4","size":5987856},{"path":"大一上/微积分I-1/期末试卷/专题/试题选讲四.mp4","size":11467663},{"path":"大一上/微积分I-1/期末试卷/专题/试题选讲五.mp4","size":7732623},{"path":"大一上/微积分I-1/期末试卷/专题/试题选讲一.mp4","size":5970772},{"path":"大一上/微积分I-1/期末试卷/专题/题解选.pdf","size":154095},{"path":"大一上/微积分I-1/期末试卷/专题/D3习题课（更新版）.ppt","size":2279424},{"path":"大一上/微积分I-1/期末试卷/专题/D5_习题课(更新版）.ppt","size":2291712},{"path":"大一上/微积分I-1/期中试卷/2022-2023学年第一学期微积分I-1期中试卷.pdf","size":182567},{"path":"大一上/微积分I-1/期中试卷/2023-2024学年第一学期微积分I-1期中试卷.pdf","size":384396},{"path":"大一上/微积分I-1/期中试卷/2024-2025学年第一学期微积分I-1期中试卷 .pdf","size":207065},{"path":"大一上/微积分I-1/期中试卷/2025-2026学年第一学期微积分I-1期中试卷解答.pdf","size":295160},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2012微积分Ⅰ-1 期中试题.pdf","size":181131},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2013微积分Ⅰ-1 期中试题A.pdf","size":192941},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2013微积分Ⅰ-1 期中试题B.pdf","size":175040},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2014微积分Ⅰ-1 期中试题.pdf","size":225564},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2015-2016学年第一学期微积分I-1期中试卷.doc","size":129536},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2015微积分Ⅰ-1 期中试题.pdf","size":213040},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2016-2017学年第一学期微积分I-1期中试卷.pdf","size":280854},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2016微积分Ⅰ-1 期中试题.pdf","size":322020},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2017-2018学年第一学期微积分I-1期中试卷.doc","size":212480},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2018-2019学年第一学期微积分I-1期中试卷.pdf","size":232407},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2019-2020学年第一学期微积分I-1期中试卷.pdf","size":230888},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2020-2021学年微积分I-1期中考试试卷.pdf","size":497144},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/2021-2022学年第一学期微积分I-1期中试卷.pdf","size":176784},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2012微积分Ⅰ-1 期中试题答案.pdf","size":292833},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2013微积分Ⅰ-1 期中试题A答案.pdf","size":290985},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2013微积分Ⅰ-1 期中试题B答案.pdf","size":314196},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2014微积分Ⅰ-1 期中试题答案.pdf","size":356644},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2015微积分Ⅰ-1 期中试题答案.pdf","size":309773},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2016微积分Ⅰ-1 期中试题2答案.pdf","size":247113},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2016微积分Ⅰ-1 期中试题答案.pdf","size":487658},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2017-2018第一学期微积分I-1期中试卷解答.doc","size":496640},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2018-2019学年第一学期微积分I-1期中考试参考答案.doc","size":461824},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2019-2020学年第一学期微积分I-1期中试卷答案.pdf","size":294395},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2020-2021学年第一学期微积分I-1期中考试试卷答案.pdf","size":584503},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2021-2022学年第一学期微积分I-1期中试卷答案.pdf","size":235849},{"path":"大一上/微积分I-1/期中试卷/微积分期中资料/答案/2022-2023学年第一学期微积分I-1期中试卷答案.pdf","size":240568},{"path":"大一上/微积分I-1/同济大学高等数学第七版上册.pdf","size":58591999},{"path":"大一上/微积分I-1/README.md","size":105},{"path":"大一上/线性代数(A)/教材信息.jpg","size":2332607},{"path":"大一上/线性代数(A)/课件(zxl)/第二章/2.1 线性方程组和矩阵.pdf","size":666101},{"path":"大一上/线性代数(A)/课件(zxl)/第二章/2.2 矩阵的运算.pdf","size":2514392},{"path":"大一上/线性代数(A)/课件(zxl)/第二章/2.3 逆矩阵.pdf","size":1188215},{"path":"大一上/线性代数(A)/课件(zxl)/第二章/2.4 克拉姆法则.pdf","size":546410},{"path":"大一上/线性代数(A)/课件(zxl)/第二章/2.5 矩阵分块法.pdf","size":846680},{"path":"大一上/线性代数(A)/课件(zxl)/第三章/3.1 矩阵的初等变换.pdf","size":1021762},{"path":"大一上/线性代数(A)/课件(zxl)/第三章/3.2 矩阵的秩.pdf","size":1140506},{"path":"大一上/线性代数(A)/课件(zxl)/第三章/3.3 线性方程组的解.pdf","size":1086586},{"path":"大一上/线性代数(A)/课件(zxl)/第四章/4.1 向量组及其线性组合.pdf","size":988925},{"path":"大一上/线性代数(A)/课件(zxl)/第四章/4.2 向量组的线性相关性.pdf","size":898867},{"path":"大一上/线性代数(A)/课件(zxl)/第四章/4.3 向量组的秩.pdf","size":834649},{"path":"大一上/线性代数(A)/课件(zxl)/第四章/4.4 向量空间.pdf","size":978277},{"path":"大一上/线性代数(A)/课件(zxl)/第四章/4.5 线性方程组的解的结构.pdf","size":1244936},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5-2_zxl.pdf","size":982958},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5.1 向量的内积、长度及正交性.pdf","size":1199476},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5.2 方阵的特征值与特征向量.pdf","size":982958},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5.4 对称矩阵的对角化.pdf","size":652766},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5.5 二次型及其标准形.pdf","size":862443},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5.6 用配方法化二次型成标准形.pdf","size":309527},{"path":"大一上/线性代数(A)/课件(zxl)/第五章/5.7 正定二次型.pdf","size":726911},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1-习题课行列式习题.docx","size":24766},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1-习题课行列式习题n2_zxl_s.ppt","size":513536},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1.1 二阶与三阶行列式.pdf","size":1209844},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1.2 全排列和对换.pdf","size":806201},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1.3 n阶行列式的定义 .pdf","size":501803},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1.4 行列式的性质 .pdf","size":1564617},{"path":"大一上/线性代数(A)/课件(zxl)/第一章/1.5 行列式按行（列）展开 .pdf","size":896723},{"path":"大一上/线性代数(A)/课时安排.jpg","size":2022233},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷I_选择填空参考解答AI.pdf","size":655663},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷I.pdf","size":288971},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷I参考答案.pdf","size":661117},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷QA_选择填空参考解答AI.pdf","size":653623},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷QA_选择填空参考解答AI(1).pdf","size":653623},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷QA.pdf","size":168635},{"path":"大一上/线性代数(A)/线代期末/《线性代数》期末模拟卷QA参考答案.pdf","size":578748},{"path":"大一上/线性代数(A)/线代期末/配方法.pdf","size":108040},{"path":"大一上/线性代数(A)/线代期末/期末必考题型总结_肖寒老师提供.pdf","size":768219},{"path":"大一上/线性代数(A)/线代期末/现代数学讲义（2025.12.13 16.51，完整版）.pdf","size":5433853},{"path":"大一上/线性代数(A)/线代期末/线代.pdf","size":3576336},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2010线性代数期末试题 - 答案.pdf","size":259696},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2010线性代数期末试题.pdf","size":195104},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2011线性代数期末试题 - 答案.pdf","size":363597},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2011线性代数期末试题.pdf","size":284374},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2012线性代数期末试题 - 答案.pdf","size":251253},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2012线性代数期末试题.pdf","size":211327},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2013线性代数期末试题 - 答案.pdf","size":301104},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2013线性代数期末试题.pdf","size":232680},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2015.1 线代 期末 答案.doc","size":290304},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2015.1 线代 期末 试卷.doc","size":145920},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2015.6 线代 期末 答案.pdf","size":353536},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2015.6 线代 期末 试卷.pdf","size":332991},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2016.1 线代 期末 答案.doc","size":547328},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2016.1 线代 期末 试卷.doc","size":291328},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2016.6 线代 期末 答案.docx","size":222418},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2016.6 线代 期末 试卷.docx","size":141059},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2017.1 线代 期末 答案.docx","size":232695},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2017.1 线代 期末 试卷.docx","size":128641},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2017.6 线代 期末 答案.docx","size":220910},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2017.6 线代 期末 试卷.docx","size":115497},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2018.1 线代 期末 答案.docx","size":313057},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2018.1 线代 期末 试卷.docx","size":168186},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2019.1 线代 期末 试卷.docx","size":204186},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/202001《线性代数》期末试卷A(1).pdf","size":847420},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/202001《线性代数》期末试卷A参考答案.docx","size":1451751},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2309-LA I-Final-A-Solutions.pdf","size":966910},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2402-LA I_Final A_Solutions.pdf","size":139917},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2409-LA I-Final A_Solutions.pdf","size":135937},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2409-LA I-Final Simulation_Solutions.pdf","size":578748},{"path":"大一上/线性代数(A)/线代期末/线性代数期末试题（10-24 缺失2122）/2409-LA I-Final Simulation.pdf","size":168635},{"path":"大一上/线性代数(A)/线代期中/《线性代数》期中考模拟卷I-参考答案.pdf","size":219445},{"path":"大一上/线性代数(A)/线代期中/《线性代数》期中考模拟卷I-详解.pdf","size":604654},{"path":"大一上/线性代数(A)/线代期中/《线性代数》期中考模拟卷I.pdf","size":268744},{"path":"大一上/线性代数(A)/线代期中/《线性代数》期中考模拟卷II-参考答案.pdf","size":150965},{"path":"大一上/线性代数(A)/线代期中/《线性代数》期中考模拟卷II-详解.pdf","size":601157},{"path":"大一上/线性代数(A)/线代期中/《线性代数》期中考模拟卷II.pdf","size":372744},{"path":"大一上/线性代数(A)/线代期中/2025线性代数期中试卷.pdf","size":977502},{"path":"大一上/线性代数(A)/线代期中/25261《线性代数》期中试卷_答案（定稿）(2).docx","size":4547724},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2013线性代数期中试题A.pdf","size":223665},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2013线性代数期中试题B.pdf","size":168899},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2014线性代数期中试题2.pdf","size":279263},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2014线性代数期中试题A .doc","size":194560},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2014线性代数期中试题A2.doc","size":148480},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2015线性代数期中试题.doc","size":187904},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2015线性代数期中试题2.doc","size":162304},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2016线性代数期中试题.doc","size":152064},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2016线性代数期中试题2.doc","size":183808},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2016线性代数期中试题3（答案缺）.pdf","size":247124},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2017线性代数期中试题.pdf","size":496387},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2017线性代数期中试题2.doc","size":138240},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2017线性代数期中试题3.doc","size":245760},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2018线性代数期中试题（含讲评）.pptx","size":914781},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2018线性代数期中试题2.doc","size":144896},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/2018线性代数期中试题3.doc","size":140288},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2013线性代数期中试题A·答案.pdf","size":241466},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2013线性代数期中试题B·答案.pdf","size":198193},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2014线性代数期中试题2 - 答案.pdf","size":437401},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2014线性代数期中试题A - 答案.doc","size":391680},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2014线性代数期中试题A2 - 答案.doc","size":268800},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2015线性代数期中试题 - 答案.doc","size":292352},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2015线性代数期中试题2 - 答案.doc","size":310784},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2016线性代数期中试题 - 答案.doc","size":259584},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2016线性代数期中试题2 - 答案.doc","size":375808},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2017线性代数期中试题2 - 答案.doc","size":281600},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2017线性代数期中试题A-答案.pdf","size":611804},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2018线性代数期中试题2 - 答案.doc","size":308224},{"path":"大一上/线性代数(A)/线代期中/线代期中资料/答案/2018线性代数期中试题3 - 答案.doc","size":353792},{"path":"大一上/线性代数(A)/README.md","size":140},{"path":"大一上/线性代数(A)/zxl评分标准.jpg","size":1815827},{"path":"大一上/新生研讨课/README.md","size":100},{"path":"大一上/新生研讨课/Screenshot_20250925_232814.jpg","size":205864},{"path":"大一上/形势与政策1/【0907】《形势与政策》四个模块资料思考题.docx","size":46948},{"path":"大一上/形势与政策1/2024-2025 第二学期《形势与政策》四个模块资料思考题.docx","size":45897},{"path":"大一上/形势与政策1/README.md","size":58},{"path":"大一上/C程序设计/编程软件/CodeBlocks/20.03/851eb-main.zip","size":8035019},{"path":"大一上/C程序设计/编程软件/CodeBlocks/20.03/CodeBlocks汉化包.rar","size":92992},{"path":"大一上/C程序设计/编程软件/CodeBlocks/20.03/CodeBlocks汉化包/CodeBlocks.mo","size":343481},{"path":"大一上/C程序设计/编程软件/CodeBlocks/20.03/CodeBlocks汉化包/readme.txt","size":351},{"path":"大一上/C程序设计/编程软件/CodeBlocks/20.03/CodeBlocks汉化包安装方法.txt","size":381},{"path":"大一上/C程序设计/编程软件/CodeBlocks/安装包/codeblocks-25.03mingw-setup.part1.rar","size":103809024},{"path":"大一上/C程序设计/编程软件/CodeBlocks/安装包/codeblocks-25.03mingw-setup.part2.rar","size":103809024},{"path":"大一上/C程序设计/编程软件/CodeBlocks/安装包/codeblocks-25.03mingw-setup.part3.rar","size":103809024},{"path":"大一上/C程序设计/编程软件/CodeBlocks/安装包/codeblocks-25.03mingw-setup.part4.rar","size":101710757},{"path":"大一上/C程序设计/编程软件/CodeBlocks/用CodeBlocks创建C语言工程的方法.docx","size":881030},{"path":"大一上/C程序设计/编程软件/CodeBlocks/C语言实训教程_CB的使用_20231008.pdf","size":5479458},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks单步调试入门.pdf","size":1409785},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks的安装步骤.docx","size":257811},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks教程2015.pdf","size":5033255},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks使用简略教程.pdf","size":938991},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks使用快速入门.docx","size":639074},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks无法编译怎么解决.docx","size":570375},{"path":"大一上/C程序设计/编程软件/CodeBlocks/CodeBlocks无法调试的原因及解决办法.txt","size":261},{"path":"大一上/C程序设计/编程软件/CodeBlocks/codeblocks显示无法找到编译器的解决方法.docx","size":173706},{"path":"大一上/C程序设计/编程软件/Dev-Cpp 5.11 TDM-GCC 4.9.2 Setup.exe","size":50433966},{"path":"大一上/C程序设计/编程软件/MinGW/x86_64-14.2.0-release-win32-seh-ucrt-rt_v12-rev2.7z","size":91597178},{"path":"大一上/C程序设计/编程软件/RedPanda.C++.3.3.win64.MinGW64_11.5.0.Setup.exe","size":62234671},{"path":"大一上/C程序设计/编程软件/VisualStudioSetup.exe","size":4466864},{"path":"大一上/C程序设计/编程软件/VSCode教程 (Linux).pdf","size":6321709},{"path":"大一上/C程序设计/课件和习题代码（zxl）/【拓展】C程序设计（第五版）学习辅导——常见错误分析/第14章.rar","size":7026},{"path":"大一上/C程序设计/课件和习题代码（zxl）/【拓展】C程序设计（第五版）学习辅导——常见错误分析/C程序设计（第五版）学习辅导——常见错误分析.pdf","size":2515174},{"path":"大一上/C程序设计/课件和习题代码（zxl）/【拓展】C程序设计（第五版）学习辅导——位运算/第12章.rar","size":497},{"path":"大一上/C程序设计/课件和习题代码（zxl）/【拓展】C程序设计（第五版）学习辅导——位运算/C程序设计（第五版）学习辅导——位运算.pdf","size":2007687},{"path":"大一上/C程序设计/课件和习题代码（zxl）/【拓展】C程序设计（第五版）学习辅导——预处理指令/C程序设计（第五版）学习辅导——预处理指令.pdf","size":2882760},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第10章 对文件的输入输出/第10章 对文件的输入输出.pdf","size":415283},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第10章 对文件的输入输出/第10章.rar","size":5949},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第10章 对文件的输入输出/sc_ch10.rar","size":5204},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第1章 程序设计和C语言/第1章　程序设计和C语言.pdf","size":4822269},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第1章 程序设计和C语言/第1章.rar","size":600},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第1章 程序设计和C语言/sc_ch1.rar","size":1534},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第2章 计算机中的数/第2章 计算机中的数.pdf","size":1734467},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第3章 最简单的C程序设计——顺序程序设计/第3章 最简单的C程序设计——顺序程序设计A.pdf","size":8874435},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第3章 最简单的C程序设计——顺序程序设计/第3章 最简单的C程序设计——顺序程序设计B.pdf","size":3570861},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第3章 最简单的C程序设计——顺序程序设计/第3章.rar","size":3870},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第3章 最简单的C程序设计——顺序程序设计/sc_ch3.rar","size":3643},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第4章 选择结构程序设计/第4章 选择结构程序设计.pdf","size":1095471},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第4章 选择结构程序设计/第4章.rar","size":4176},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第4章 选择结构程序设计/sc_ch4.rar","size":4279},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第5章 循环结构程序设计/第5章 循环结构程序设计A.pdf","size":567624},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第5章 循环结构程序设计/第5章 循环结构程序设计B.pdf","size":638606},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第5章 循环结构程序设计/第5章.rar","size":5391},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第5章 循环结构程序设计/sc_ch5.rar","size":6832},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第6章 利用数组处理批量数据/第6章 利用数组处理批量数据A.pdf","size":2712375},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第6章 利用数组处理批量数据/第6章 利用数组处理批量数据B.pdf","size":847603},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第6章 利用数组处理批量数据/第6章.rar","size":5608},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第6章 利用数组处理批量数据/sc_ch6.rar","size":2803},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第7章 用函数实现模块化程序设计/第7章 用函数实现模块化程序设计A.pdf","size":2335501},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第7章 用函数实现模块化程序设计/第7章 用函数实现模块化程序设计B.pdf","size":2698845},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第7章 用函数实现模块化程序设计/第7章.rar","size":7352},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第7章 用函数实现模块化程序设计/sc_ch7.rar","size":8379},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第8章 善于利用指针/第8章 善于利用指针.pdf","size":1060042},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第8章 善于利用指针/第8章.rar","size":10261},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第8章 善于利用指针/sc_ch8.rar","size":14277},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第9章 用户自己建立数据类型/第9章 补充：带头结点的单链表及其插入删除.pdf","size":372816},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第9章 用户自己建立数据类型/第9章 用户自己建立数据类型.pdf","size":2934624},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第9章 用户自己建立数据类型/第9章.rar","size":9212},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第9章 用户自己建立数据类型/第9章补充：两条单链表操作举例.pdf","size":754617},{"path":"大一上/C程序设计/课件和习题代码（zxl）/第9章 用户自己建立数据类型/sc_ch9.rar","size":6558},{"path":"大一上/C程序设计/期末上机/2_期末上机试题2023.pdf","size":176193},{"path":"大一上/C程序设计/期末上机/期末上机C语言（XMU2025C）回忆版.txt","size":325},{"path":"大一上/C程序设计/期末试卷/2012C语言期末试题 - 答案.pdf","size":569198},{"path":"大一上/C程序设计/期末试卷/2012C语言期末试题.pdf","size":537056},{"path":"大一上/C程序设计/期末试卷/2013C语言期末试题 - 答案.pdf","size":643212},{"path":"大一上/C程序设计/期末试卷/2013C语言期末试题.pdf","size":612547},{"path":"大一上/C程序设计/期末试卷/期末复习（郑旭玲）.pptx","size":13630074},{"path":"大一上/C程序设计/期末试卷/期末模拟试题.pdf","size":139316},{"path":"大一上/C程序设计/期末试卷/期末模拟试题参考答案.pdf","size":103377},{"path":"大一上/C程序设计/期末试卷/C期末模拟卷.pdf","size":400973},{"path":"大一上/C程序设计/期末试卷/C期末模拟卷参考答案.pdf","size":119981},{"path":"大一上/C程序设计/期末试卷/C语言-2014(答案暂缺).doc","size":114688},{"path":"大一上/C程序设计/期末试卷/C语言-2016（答案暂缺）.pdf","size":451662},{"path":"大一上/C程序设计/期末试卷/C语言程序设计期末试卷(样卷).pdf","size":397464},{"path":"大一上/C程序设计/期末试卷/C语言程序设计期末试卷(样卷)key.pdf","size":270871},{"path":"大一上/C程序设计/期末试卷/C语言期末试题（答案暂无）.pdf","size":1492815},{"path":"大一上/C程序设计/期末试卷/C语言强化理解第一讲.pptx","size":5149894},{"path":"大一上/C程序设计/期中试卷/2019学年C期中试题_共享版.pdf","size":253792},{"path":"大一上/C程序设计/期中试卷/2019学年C期中试题_共享版key.pdf","size":164757},{"path":"大一上/C程序设计/期中试卷/2020C期中试题_简版.pdf","size":99729},{"path":"大一上/C程序设计/期中试卷/2020C期中试题_简版key.pdf","size":128572},{"path":"大一上/C程序设计/期中试卷/2025年C程序设计期中试卷.pdf","size":1468343},{"path":"大一上/C程序设计/期中试卷/242501C语言程序设计期中考1101_zhl.docx","size":101628},{"path":"大一上/C程序设计/期中试卷/期中复习试题2.pdf","size":99729},{"path":"大一上/C程序设计/期中试卷/期中复习试题2参考答案及评分标准.pdf","size":128572},{"path":"大一上/C程序设计/期中试卷/C期中试题_共享版key.pdf","size":164757},{"path":"大一上/C程序设计/README.md","size":140},{"path":"大一上/README.md","size":0},{"path":"大一下/大学生心理健康/3_学生如何注册使用mooc1(1).pptx","size":1813074},{"path":"大一下/大学生心理健康/附件13：厦门大学学生注册选课流程（SPOC）(1).pdf","size":2566043},{"path":"大一下/大学生心理健康/README.md","size":52},{"path":"大一下/大学物理B/10.气体分子运动论.pptx","size":2686604},{"path":"大一下/大学物理B/9.热力学基础01.pptx","size":1012853},{"path":"大一下/大学物理B/9.热力学基础02.pptx","size":1419524},{"path":"大一下/大学物理B/9.热力学基础03.pptx","size":1227254},{"path":"大一下/大学物理B/9.热力学基础04.pptx","size":1789057},{"path":"大一下/大学物理B/大物B期中复习(1).pptx","size":2872716},{"path":"大一下/大学物理B/第01章 质点运动学.ppt","size":7648768},{"path":"大一下/大学物理B/第02章 质点动力学.ppt","size":20368896},{"path":"大一下/大学物理B/第03章 刚体力学基础.ppt","size":5844480},{"path":"大一下/大学物理B/第13章  相对论基础.ppt","size":5900800},{"path":"大一下/大学物理B/期末试卷/《大学物理B上》期末-复习题-1.docx","size":231393},{"path":"大一下/大学物理B/期末试卷/《大学物理B上》期末试卷（含答案）A卷.docx","size":157210},{"path":"大一下/大学物理B/期末试卷/《大学物理B上》期末试卷A卷参考答案.pdf","size":981114},{"path":"大一下/大学物理B/期末试卷/15-16《大学物理B上》期末试卷A卷.doc","size":417792},{"path":"大一下/大学物理B/期末试卷/16-17《大学物理B上》期末试卷A卷.docx","size":116894},{"path":"大一下/大学物理B/期末试卷/21222B上.pdf","size":328214},{"path":"大一下/大学物理B/期末试卷/22232B上.pdf","size":1651304},{"path":"大一下/大学物理B/期末试卷/样卷3.期末考B上A卷21222(上册).pdf","size":435217},{"path":"大一下/大学物理B/期末试卷/样卷4.《大学物理B上》期末试卷A卷参考答案.pdf","size":952920},{"path":"大一下/大学物理B/期中试卷/《大学物理B上》期末试卷A卷参考答案.pdf","size":981114},{"path":"大一下/大学物理B/期中试卷/17-18《大学物理B上》期中试卷.pdf","size":1378477},{"path":"大一下/大学物理B/期中试卷/18-19《大学物理B上》期中试卷.pdf","size":1456004},{"path":"大一下/大学物理B/期中试卷/20-21《大学物理B上》期中试卷.pdf","size":573457},{"path":"大一下/大学物理B/期中试卷/2019《大学物理B上》期末试卷（含答案）A卷.docx","size":157210},{"path":"大一下/大学物理B/期中试卷/202304《大学物理A上》期中试卷A卷 (1).pdf","size":453119},{"path":"大一下/大学物理B/期中试卷/2024《大学物理B上》期中试卷A卷.pdf","size":1147511},{"path":"大一下/大学物理B/期中试卷/2025《大学物理B上》期中试卷A卷 (1).pdf","size":2211136},{"path":"大一下/大学物理B/期中试卷/21-22《大学物理B上》期中试卷.pdf","size":674046},{"path":"大一下/大学物理B/厦门大学本科课程教学进度表_大学物理B上_17周.doc","size":103424},{"path":"大一下/大学物理B/绪论/1.矢量运算(1).pptx","size":999186},{"path":"大一下/大学物理B/绪论/1.绪论.ppt","size":2837504},{"path":"大一下/大学物理B/绪论/物理世界的地图 [720p].mp4","size":31402765},{"path":"大一下/大学物理B/绪论/A Brief History of Physics [720p].mp4","size":13911145},{"path":"大一下/大学物理B/作业/01质点运动学1 (答案).pdf","size":141601},{"path":"大一下/大学物理B/作业/01质点运动学1.pdf","size":367910},{"path":"大一下/大学物理B/作业/02质点运动学2 (答案).pdf","size":570160},{"path":"大一下/大学物理B/作业/02质点运动学2.pdf","size":493534},{"path":"大一下/大学物理B/作业/03质点动力学1 (答案).pdf","size":295682},{"path":"大一下/大学物理B/作业/03质点动力学1.pdf","size":388927},{"path":"大一下/大学物理B/作业/04质点动力学2.pdf","size":471051},{"path":"大一下/大学物理B/作业/05刚体的定轴转动1.pdf","size":354327},{"path":"大一下/大学物理B/作业/05刚体的定轴转动1（答案）.pdf","size":166805},{"path":"大一下/大学物理B/作业/06刚体的定轴转动2.pdf","size":379952},{"path":"大一下/大学物理B/作业/06刚体的定轴转动2（答案）.pdf","size":228304},{"path":"大一下/大学物理B/作业/07热力学基础1.pdf","size":327422},{"path":"大一下/大学物理B/作业/07热力学基础1（答案）.pdf","size":219667},{"path":"大一下/大学物理B/作业/08热力学基础2.pdf","size":664272},{"path":"大一下/大学物理B/作业/08热力学基础2（答案）.pdf","size":470818},{"path":"大一下/大学物理B/作业/09气体动理论1.pdf","size":526236},{"path":"大一下/大学物理B/作业/09气体运理论1（答案）.pdf","size":163970},{"path":"大一下/大学物理B/作业/10气体动理论2.pdf","size":351376},{"path":"大一下/大学物理B/作业/10气体动理论2（答案）.pdf","size":273488},{"path":"大一下/大学物理B/作业/第二次小测题目.pdf","size":437518},{"path":"大一下/大一下电子书/(书签修复)程序设计教程：用C++语言编程 第4版_9787111716976_23897_compressed.pdf","size":5000524},{"path":"大一下/大一下电子书/(已打书签)大学物理学（第三版上）.pdf","size":79858543},{"path":"大一下/大一下电子书/(已打书签)大学物理学（第三版下）.part1.rar","size":103809024},{"path":"大一下/大一下电子书/(已打书签)大学物理学（第三版下）.part2.rar","size":43793891},{"path":"大一下/大一下电子书/(已打书签)电工电子学(第5版) 浙江大学电工电子基础教学中心电工学组,叶挺秀,潘丽萍,张伯尧 高等教育出版社 (高等教育出版社) (Z-Library)_compressed.pdf","size":57769495},{"path":"大一下/大一下电子书/(已打书签)概率论与数理统计(第五版) (浙江大学、盛骤、谢式千、潘承毅) (Z-Library).pdf","size":58620973},{"path":"大一下/大一下电子书/电路基础教材-邱关源电路第6版高等教育出版社(1-7章).rar","size":87917785},{"path":"大一下/大一下电子书/二极管三极管mos管教材—童诗白模拟电子技术基础 第六版高等教育出版社(1章) (1).part1.rar","size":103809024},{"path":"大一下/大一下电子书/二极管三极管mos管教材—童诗白模拟电子技术基础 第六版高等教育出版社(1章) (1).part2.rar","size":103809024},{"path":"大一下/大一下电子书/二极管三极管mos管教材—童诗白模拟电子技术基础 第六版高等教育出版社(1章) (1).part3.rar","size":49326253},{"path":"大一下/大一下电子书/概率论讲义(0328).pdf","size":1478725},{"path":"大一下/大一下电子书/高等数学 下册 第八版 (同济大学数学科学学院 编) (Z-Library).pdf","size":79729033},{"path":"大一下/大一下电子书/阎石数字电子技术基础第六版高等教育出版社(3章).pdf","size":69747138},{"path":"大一下/电路原理/电路原理2025期末.pdf","size":1662167},{"path":"大一下/电路原理/电子书/2026电路基础（计算机版）教材三合一.part1.rar","size":103809024},{"path":"大一下/电路原理/电子书/2026电路基础（计算机版）教材三合一.part2.rar","size":4196558},{"path":"大一下/电路原理/课件/第2章-电阻电路的等效变换.pdf","size":1865642},{"path":"大一下/电路原理/课件/第3章-电阻电路的一般分析.pdf","size":1547224},{"path":"大一下/电路原理/课件/第4章-电路定理.pdf","size":2447577},{"path":"大一下/电路原理/课件/第5章 运算放大器.pdf","size":1077850},{"path":"大一下/电路原理/课件/第六章 储能元件.pdf","size":1970868},{"path":"大一下/电路原理/课件/第七章 一阶电路和二阶电路的时域分析.pdf","size":3893999},{"path":"大一下/电路原理/课件/第一章电路模型和电路定律.pdf","size":2041015},{"path":"大一下/电路原理/课件/门电路课件0604_1.pdf","size":4479569},{"path":"大一下/电路原理/课件/模电二极管三极管MOS管课件修改版0526.pdf","size":14090658},{"path":"大一下/电路原理/作业/第二章作业2(1).pdf","size":135325},{"path":"大一下/电路原理/作业/第三章作业3.pdf","size":258264},{"path":"大一下/电路原理/作业/第四章作业4.pdf","size":69406},{"path":"大一下/电路原理/作业/第五章作业5.pdf","size":62954},{"path":"大一下/电路原理/作业/第一章作业1.pdf","size":109728},{"path":"大一下/电路原理/作业/电路原理题型.pdf","size":1562596},{"path":"大一下/概率统计A/概统相关.pdf","size":1604634},{"path":"大一下/概率统计A/结论（精简版）.pdf","size":3028629},{"path":"大一下/概率统计A/课件/0304第一讲.pptx","size":3491761},{"path":"大一下/概率统计A/课件/0306第二讲.pptx","size":6056080},{"path":"大一下/概率统计A/课件/0311第三讲.pptx","size":5933636},{"path":"大一下/概率统计A/课件/0313第四讲.pptx","size":4607170},{"path":"大一下/概率统计A/课件/0318第五讲.pptx","size":42105336},{"path":"大一下/概率统计A/课件/0320第六讲.pptx","size":11044475},{"path":"大一下/概率统计A/课件/0325第七讲.pptx","size":10482579},{"path":"大一下/概率统计A/课件/0327第八讲.pptx","size":11229021},{"path":"大一下/概率统计A/课件/0401第九讲.pptx","size":11585810},{"path":"大一下/概率统计A/课件/0403第十讲.pptx","size":7435623},{"path":"大一下/概率统计A/课件/0408第十一讲.pptx","size":6238472},{"path":"大一下/概率统计A/课件/0410第十二讲.pptx","size":6100286},{"path":"大一下/概率统计A/课件/0415第十三讲.pptx","size":5521455},{"path":"大一下/概率统计A/课件/0417第十四讲.pptx","size":2049878},{"path":"大一下/概率统计A/课件/0422第十五讲.pptx","size":2411241},{"path":"大一下/概率统计A/课件/0423第十八讲（答案版）.pptx","size":5201042},{"path":"大一下/概率统计A/课件/0423第十八讲(题目版）.pptx","size":1581432},{"path":"大一下/概率统计A/课件/0424第十六讲.pptx","size":2027338},{"path":"大一下/概率统计A/课件/0429第十七讲.pptx","size":81052571},{"path":"大一下/概率统计A/课件/0508第十八讲.pptx","size":3472842},{"path":"大一下/概率统计A/课件/0513第十九讲.pptx","size":3239954},{"path":"大一下/概率统计A/课件/0515第二十讲.pptx","size":6980783},{"path":"大一下/概率统计A/课件/0520第二十一讲.pptx","size":7228307},{"path":"大一下/概率统计A/课件/0522第二十二讲.pptx","size":6248443},{"path":"大一下/概率统计A/课件/0527第二十三讲.pptx","size":5120936},{"path":"大一下/概率统计A/课件/0529第二十四讲.pptx","size":10851081},{"path":"大一下/概率统计A/课件/0603第二十五讲.pptx","size":9865083},{"path":"大一下/概率统计A/课件/0605第二十六讲.pptx","size":10944500},{"path":"大一下/概率统计A/课件/0610第二十七讲.pptx","size":9438004},{"path":"大一下/概率统计A/期末/期末复习资料/192001概率统计（I）期末A卷答案 .pdf","size":2390167},{"path":"大一下/概率统计A/期末/期末复习资料/2008概率统计期末试题（答案暂无）.pdf","size":251459},{"path":"大一下/概率统计A/期末/期末复习资料/2012概率统计期末试题A卷.pdf","size":267444},{"path":"大一下/概率统计A/期末/期末复习资料/2012概率统计期末试题B卷（答案暂无）.pdf","size":244879},{"path":"大一下/概率统计A/期末/期末复习资料/2015概率统计期末试题A卷.pdf","size":155680},{"path":"大一下/概率统计A/期末/期末复习资料/2015概率统计期末试题B卷.pdf","size":456593},{"path":"大一下/概率统计A/期末/期末复习资料/2016概率统计期末试题A卷.pdf","size":325824},{"path":"大一下/概率统计A/期末/期末复习资料/2016概率统计期末试题A卷2.pdf","size":303594},{"path":"大一下/概率统计A/期末/期末复习资料/2016概率统计期末试题B卷.pdf","size":318066},{"path":"大一下/概率统计A/期末/期末复习资料/2016概率统计期末试题B卷2.pdf","size":287116},{"path":"大一下/概率统计A/期末/期末复习资料/2017概率统计期末试题A卷.pdf","size":883247},{"path":"大一下/概率统计A/期末/期末复习资料/2018概率统计期末试题A卷.doc","size":119296},{"path":"大一下/概率统计A/期末/期末复习资料/2018概率统计期末试题B卷.pdf","size":517412},{"path":"大一下/概率统计A/期末/期末复习资料/2019概率统计期末试题A卷.pdf","size":403284},{"path":"大一下/概率统计A/期末/期末复习资料/2020概率统计期末试题A卷（含答案）..pdf","size":2390167},{"path":"大一下/概率统计A/期末/期末复习资料/20212期末考试B卷v2.doc","size":1421312},{"path":"大一下/概率统计A/期末/期末复习资料/20212期末考试B卷v2.pdf","size":701294},{"path":"大一下/概率统计A/期末/期末复习资料/2022概率统计期末试题A卷（含答案）.pdf","size":300574},{"path":"大一下/概率统计A/期末/期末复习资料/21-22概统.docx","size":5298473},{"path":"大一下/概率统计A/期末/期末复习资料/212201概率统计I秋季学期试卷A（答案）.pdf","size":300574},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2012概率统计期末试题A卷答案.pdf","size":402316},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2015概率统计期末试题A卷 - 答案.pdf","size":455328},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2015概率统计期末试题B卷 - 答案.pdf","size":3095642},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2016概率统计期末试题A卷2 - 答案.pdf","size":1085303},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2016概率统计期末试题A卷答案.pdf","size":302654},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2016概率统计期末试题B卷2 - 答案.pdf","size":256016},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2016概率统计期末试题B卷答案.pdf","size":418126},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2017概率统计期末试题A卷 - 答案.pdf","size":1970930},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2018概率统计期末试题A卷 - 答案.doc","size":265728},{"path":"大一下/概率统计A/期末/期末复习资料/答案/2018概率统计期末试题B卷 - 答案.pdf","size":424737},{"path":"大一下/概率统计A/期末/期末复习资料/答案/期末参考试卷1答案.pdf","size":1459742},{"path":"大一下/概率统计A/期末/期末复习资料/答案/期末参考试卷2答案.pdf","size":432192},{"path":"大一下/概率统计A/期末/期末复习资料/答案/期末参考试卷3答案.pdf","size":2077115},{"path":"大一下/概率统计A/期末/期末复习资料/答案/期末参考试卷4 - 答案.pdf","size":256016},{"path":"大一下/概率统计A/期末/期末复习资料/答案/期末参考试卷5 - 答案.pdf","size":2390167},{"path":"大一下/概率统计A/期末/期末复习资料/期末参考试卷1.pdf","size":431040},{"path":"大一下/概率统计A/期末/期末复习资料/期末参考试卷2.pdf","size":337278},{"path":"大一下/概率统计A/期末/期末复习资料/期末参考试卷3.pdf","size":247309},{"path":"大一下/概率统计A/期末/期末复习资料/期末参考试卷4.pdf","size":243672},{"path":"大一下/概率统计A/期末/期末复习资料/期末参考试卷5.pdf","size":403716},{"path":"大一下/概率统计A/期末/期末复习资料/期末试卷B.pdf","size":449977},{"path":"大一下/概率统计A/期末/期末复习资料/期末试卷B（无答案）.pdf","size":292925},{"path":"大一下/概率统计A/期末/期末复习资料/期末试卷C.pdf","size":445998},{"path":"大一下/概率统计A/期末/期末复习资料/期末试卷C（无答案）.pdf","size":287474},{"path":"大一下/概率统计A/期末/期末复习资料/期末试卷D卷.pdf","size":358888},{"path":"大一下/概率统计A/期末/期末模拟卷0A.pdf","size":133867},{"path":"大一下/概率统计A/期末/期末模拟卷0A参考答案.pdf","size":212798},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/09,11,13，参考期中答案/2009概率论与数理统计期中试题答案.pdf","size":217261},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/09,11,13，参考期中答案/2011概率论与数理统计期中试题答案.pdf","size":377867},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/09,11,13，参考期中答案/2013概率论与数理统计期中试题答案.pdf","size":614994},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/09,11,13，参考期中答案/概率论与数理统计期中参考试题1答案.pdf","size":627572},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/09,11,13，参考期中答案/概率论与数理统计期中参考试题2答案.pdf","size":480421},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/19期中答案.docx","size":637088},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/2009概率论与数理统计期中试题.pdf","size":228792},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/2011概率论与数理统计期中试题.pdf","size":252457},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/2013概率论与数理统计期中试题.pdf","size":297479},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/2017-2018学年概率论期中考卷终稿（题目加分数加答案)(1).pdf","size":1306734},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/2019学年概率论与数理统计期中考卷第二版(1).pdf","size":200240},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/2021-2022学年第一学期概率统计I期中考试答案.pdf","size":745634},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/21概率期中考-带答案.docx","size":773477},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/21概率期中考-带答案(1).docx","size":2318416},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/22232概率期中考试题+答案(1).docx","size":2790226},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/23概率期中考试题.docx","size":478091},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率论与数理统计期中参考试题1.pdf","size":319264},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率论与数理统计期中参考试题2.pdf","size":248442},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率统计I期中参考试卷1.pdf","size":254969},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率统计I期中参考试卷1答案.pdf","size":297285},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率统计I期中参考试卷2.pdf","size":123337},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率统计I期中参考试卷2答案.pdf","size":413573},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率统计I期中参考试卷3.pdf","size":568109},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/概率统计I期中参考试卷3答案.pdf","size":171377},{"path":"大一下/概率统计A/期中/概率论与数理统计期中试卷/扫描全能王 2026-03-13 17.55.pdf","size":1837808},{"path":"大一下/概率统计A/期中/期中答案参考.pdf","size":252018},{"path":"大一下/概率统计A/期中/期中模拟卷IIA.pdf","size":253581},{"path":"大一下/概率统计A/期中/期中模拟卷IIA讲评.pdf","size":1321106},{"path":"大一下/概率统计A/期中/期中试卷.docx","size":22891},{"path":"大一下/概率统计A/讨论拓展项目/贝叶斯/贝叶斯过滤器.py","size":13234},{"path":"大一下/概率统计A/讨论拓展项目/贝叶斯/垃圾邮件捕手：用朴素贝叶斯打造AI过滤器— 从Hello World到Hello Bayes的机器学习初体验.docx","size":29362},{"path":"大一下/概率统计A/讨论拓展项目/二项分布与泊松分布对比/15d82400de3d1c5b1c11e64eb11de31e.png","size":46168},{"path":"大一下/概率统计A/讨论拓展项目/二项分布与泊松分布对比/e39ae27e0e0c55e8957885b95e632d10.png","size":904201},{"path":"大一下/概率统计A/讨论拓展项目/二项分布与泊松分布对比/poisson_binomial_comparison.png","size":149450},{"path":"大一下/概率统计A/讨论拓展项目/二项分布与泊松分布对比/poisson_comparison.py","size":2383},{"path":"大一下/概率统计A/讨论拓展项目/绘制均匀分布与正太分布/绘制均匀分布与正太分布.mat","size":137457},{"path":"大一下/概率统计A/讨论拓展项目/绘制均匀分布与正太分布/QQ_1776057200652.png","size":197238},{"path":"大一下/概率统计A/讨论拓展项目/绘制均匀分布与正太分布/QQ_1776057236212.png","size":603834},{"path":"大一下/概率统计A/讨论拓展项目/绘制均匀分布与正太分布/QQ_1776057241849.png","size":632810},{"path":"大一下/概率统计A/讨论拓展项目/绘制均匀分布与正太分布/QQ_1776057248649.png","size":207837},{"path":"大一下/概率统计A/讨论拓展项目/均匀分布、指数分布与正态分布/均匀、指数、正太.py","size":4399},{"path":"大一下/概率统计A/讨论拓展项目/均匀分布、指数分布与正态分布/正太、均匀、指数.png","size":223652},{"path":"大一下/概率统计A/讨论拓展项目/均匀分布、指数分布与正态分布/Snipaste_2026-03-25_22-11-07.png","size":393622},{"path":"大一下/概率统计A/讨论拓展项目/均匀分布、指数分布与正态分布/Snipaste_2026-03-25_22-13-03.png","size":79438},{"path":"大一下/概率统计A/讨论拓展项目/蒙特卡罗/蒙特卡罗.docx","size":347811},{"path":"大一下/概率统计A/讨论拓展项目/蒙特卡罗/蒙特卡罗.py","size":972},{"path":"大一下/概率统计A/现代数学讲义 III. 经典统计学（2026.04.22 08.54，水印版）.pdf","size":15781006},{"path":"大一下/概率统计A/现代数学讲义_III___统计学基础(1).pdf","size":1806626},{"path":"大一下/概率统计A/肖寒概率论讲义（0321）.pdf","size":1467677},{"path":"大一下/面向对象程序设计(C++)/课件/第10章 基于泛型的程序设计--模板.pptx","size":8615835},{"path":"大一下/面向对象程序设计(C++)/课件/第1章 C++概述.pptx","size":1178114},{"path":"大一下/面向对象程序设计(C++)/课件/第2章 基本数据类型与表达式.pptx","size":686434},{"path":"大一下/面向对象程序设计(C++)/课件/第3章 程序的流程控制.pptx","size":915990},{"path":"大一下/面向对象程序设计(C++)/课件/第4章 函数.pptx","size":2751826},{"path":"大一下/面向对象程序设计(C++)/课件/第5章 构造数据类型.pptx","size":8621804},{"path":"大一下/面向对象程序设计(C++)/课件/第6章 1类和对象.pptx","size":17983332},{"path":"大一下/面向对象程序设计(C++)/课件/第6章 2类和对象-进一步讨论 (1).pptx","size":2931855},{"path":"大一下/面向对象程序设计(C++)/课件/第6章 2类和对象-进一步讨论.pptx","size":2931855},{"path":"大一下/面向对象程序设计(C++)/课件/第6章 3类和对象-操作符重载 (1).pptx","size":2681218},{"path":"大一下/面向对象程序设计(C++)/课件/第6章 3类和对象-操作符重载.pptx","size":2681218},{"path":"大一下/面向对象程序设计(C++)/课件/第6章 类和对象.pptx","size":5422422},{"path":"大一下/面向对象程序设计(C++)/课件/第7章 1继承.pptx","size":995842},{"path":"大一下/面向对象程序设计(C++)/课件/第7章 2继承-虚函数与动态绑定.pptx","size":11629250},{"path":"大一下/面向对象程序设计(C++)/课件/第7章 3继承-多继承.pptx","size":589619},{"path":"大一下/面向对象程序设计(C++)/课件/第7章 4继承-虚基类 聚集.pptx","size":1001345},{"path":"大一下/面向对象程序设计(C++)/课件/第8章 输入输出.pptx","size":3044552},{"path":"大一下/面向对象程序设计(C++)/课件/第9章 异常处理.pptx","size":536323},{"path":"大一下/面向对象程序设计(C++)/期末复习.pptx","size":1079490},{"path":"大一下/面向对象程序设计(C++)/期末试卷/1-7章知识点整理.docx","size":25527},{"path":"大一下/面向对象程序设计(C++)/期末试卷/2019-2020 C++ 期末 试卷.pdf","size":570730},{"path":"大一下/面向对象程序设计(C++)/期末试卷/2019-2020 C++ 期末 试卷（maoli）.pdf","size":3165386},{"path":"大一下/面向对象程序设计(C++)/期末试卷/202006C++A卷-final.pdf","size":570730},{"path":"大一下/面向对象程序设计(C++)/期末试卷/第一到第五章 重要知识点.txt","size":2500},{"path":"大一下/面向对象程序设计(C++)/期末试卷/C++模拟试题-1-2.pdf","size":139157},{"path":"大一下/面向对象程序设计(C++)/期末试卷/C++模拟试题-1-2（带答案）.pdf","size":139157},{"path":"大一下/面向对象程序设计(C++)/期末试卷/c++期末试题B.pdf","size":198260},{"path":"大一下/面向对象程序设计(C++)/期末试卷/C++试题3.pdf","size":203710},{"path":"大一下/面向对象程序设计(C++)/期中上机试题/A.左旋字符串.pdf","size":327349},{"path":"大一下/面向对象程序设计(C++)/期中上机试题/B.把字符串转换成整数.pdf","size":336208},{"path":"大一下/面向对象程序设计(C++)/期中上机试题/C.两个有序链表序列的交集.pdf","size":299826},{"path":"大一下/面向对象程序设计(C++)/期中上机试题/D.阶乘分解.pdf","size":221154},{"path":"大一下/面向对象程序设计(C++)/期中上机试题/factorial_factorization.cpp","size":1475},{"path":"大一下/面向对象程序设计(C++)/实验/第七次.docx","size":13448},{"path":"大一下/面向对象程序设计(C++)/实验/实验六：ComputerLabs II.pdf","size":169159},{"path":"大一下/面向对象程序设计(C++)/实验/实验六(2).docx","size":99367},{"path":"大一下/面向对象程序设计(C++)/小测/第1周作业.pdf","size":96308},{"path":"大一下/面向对象程序设计(C++)/小测/第1周作业答案.pdf","size":62358},{"path":"大一下/面向对象程序设计(C++)/小测/第2周作业.pdf","size":115820},{"path":"大一下/面向对象程序设计(C++)/小测/第2周作业答案.pdf","size":153741},{"path":"大一下/面向对象程序设计(C++)/小测/第3周作业.pdf","size":52343},{"path":"大一下/面向对象程序设计(C++)/小测/第5周作业.pdf","size":96361},{"path":"大一下/面向对象程序设计(C++)/小测/实验三题解.pdf","size":234866},{"path":"大一下/面向对象程序设计(C++)/小测/实验一题解.pdf","size":365117},{"path":"大一下/面向对象程序设计(C++)/小测/随堂小测-24年5月30日（第14周）.pdf","size":169605},{"path":"大一下/面向对象程序设计(C++)/小测/随堂小测-答案.pdf","size":220111},{"path":"大一下/面向对象程序设计(C++)/小测/作业-继承和多态 (1).pdf","size":242371},{"path":"大一下/面向对象程序设计(C++)/小测/作业-继承和多态.pdf","size":242371},{"path":"大一下/面向对象程序设计(C++)/小测/作业-类属和模板.pdf","size":95874},{"path":"大一下/面向对象程序设计(C++)/小测/作业答案-继承和多态.pdf","size":307649},{"path":"大一下/面向对象程序设计(C++)/小测/作业答案-类和对象.pdf","size":236683},{"path":"大一下/面向对象程序设计(C++)/小测/作业答案-类属和模板.pdf","size":179395},{"path":"大一下/微积分I-2/高等数学教材上册【第七版】.pdf","size":61729348},{"path":"大一下/微积分I-2/高等数学教材下册【第七版】.pdf","size":55538377},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第10章 重积分/10.1 二重积分的概念与性质.pptx","size":3993798},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第10章 重积分/10.2 二重积分的计算法.pptx","size":5713582},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第10章 重积分/10.3 三重积分.pptx","size":4051731},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第10章 重积分/10.4 重积分的应用.pptx","size":4038886},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第10章 重积分/10.5 含参变量的积分.pptx","size":3227576},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.1 对弧长的曲线积分.pptx","size":3733345},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.2 对坐标的曲线积分.pptx","size":4030968},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.3 格林公式及其应用.pptx","size":4272764},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.4 对面积的曲面积分.pptx","size":3539170},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.5 对坐标的曲面积分.pptx","size":4147022},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.6 高斯公式 通量与散度.pptx","size":4206475},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第11章 曲线积分与曲面积分/11.7 斯托克斯公式 环流量与旋度.pptx","size":4136638},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.1 常数项级数的概念和性质.pptx","size":3455640},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.2 常数项级数的审敛法.pptx","size":4312979},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.3 幂级数.pptx","size":3692721},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.4 函数展开成幂级数.pptx","size":3723592},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.5 函数的幂级数展开式的应用.pptx","size":3493312},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.6 函数项级数的一致收敛性及一致收敛性的基本性质.pptx","size":4136884},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.7 傅里叶级数.pptx","size":4267736},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第12章 无穷级数/12.8 一般周期函数的傅里叶级数.pptx","size":3710012},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.1 微分方程的基本概念.pptx","size":3212282},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.10 常系数线性微分方程组解法举例.pptx","size":2915438},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.2 可分离变量的微分方程.pptx","size":3225972},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.3 齐次方程.pptx","size":3267556},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.4 一阶线性微分方程.pptx","size":3250007},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.5 可降阶的高阶微分方程.pptx","size":3353516},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.6 高阶线性微分方程.pptx","size":3657603},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.7 常系数齐次线性微分方程.pptx","size":43235781},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.8 常系数非齐次线性微分方程.pptx","size":3641517},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第7章 微分方程/7.9 欧拉方程.pptx","size":2827395},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第8章 向量代数与空间解析几何/8.1 向量及其线性运算.pptx","size":4316175},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第8章 向量代数与空间解析几何/8.2 数量积 向量积 混合积.pptx","size":3902498},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第8章 向量代数与空间解析几何/8.3 平面及其方程.pptx","size":3486984},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第8章 向量代数与空间解析几何/8.4 空间直线及其方程.pptx","size":3364837},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第8章 向量代数与空间解析几何/8.5 曲面及其方程.pptx","size":4739421},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第8章 向量代数与空间解析几何/8.6 空间曲线及其方程.pptx","size":3760077},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.1 多元函数的基本概念.pptx","size":4381203},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.10 最小二乘法.pptx","size":3076715},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.2 偏导数.pptx","size":3919238},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.3 全微分.pptx","size":3546646},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.4 多元复合函数的求导法则.pptx","size":3645902},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.5 隐函数的求导公式.pptx","size":3795818},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.6 多元函数微分学的几何应用.pptx","size":4164613},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.7 方向导数与梯度.pptx","size":4390380},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.8 多元函数的极值及其求法.pptx","size":4092550},{"path":"大一下/微积分I-2/课件（同济配套cdy）/第9章 多元函数微分法及其应用/9.9 二元函数的泰勒公式.pptx","size":3517051},{"path":"大一下/微积分I-2/期末试卷/2017-2018第二学期微积分I-2期末试卷.pdf","size":501994},{"path":"大一下/微积分I-2/期末试卷/2018-2019学年第二学期微积分I-2期末试卷.pdf","size":235210},{"path":"大一下/微积分I-2/期末试卷/2019-2020学年第二学期微积分I-2期末试卷.pdf","size":233987},{"path":"大一下/微积分I-2/期末试卷/2020-2021学年第二学期微积分I-2期末考试.pdf","size":230198},{"path":"大一下/微积分I-2/期末试卷/2021-2022学年第二学期微积分I-2期末考试A卷.pdf","size":189464},{"path":"大一下/微积分I-2/期末试卷/2022-2023学年第二学期微积分I-2期末考试.pdf","size":228884},{"path":"大一下/微积分I-2/期末试卷/2023-2024学年第二学期微积分I-2期末考试 .pdf","size":216726},{"path":"大一下/微积分I-2/期末试卷/2024-2025学年第二学期微积分I-2期末考试 .pdf","size":223835},{"path":"大一下/微积分I-2/期末试卷/21-25 微积分I-II期末-级数部分.pdf","size":518939},{"path":"大一下/微积分I-2/期末试卷/答案/2017-2018第二学期微积分I-2期末试卷解答.pdf","size":383646},{"path":"大一下/微积分I-2/期末试卷/答案/2018-2019学年第二学期微积分I-2期末试卷解答.pdf","size":302384},{"path":"大一下/微积分I-2/期末试卷/答案/2019-2020学年第二学期微积分I-2期末试卷解答.pdf","size":349720},{"path":"大一下/微积分I-2/期末试卷/答案/2020-2021学年第二学期微积分I-2期末考试解答.pdf","size":301717},{"path":"大一下/微积分I-2/期末试卷/答案/2021-2022学年第二学期微积分I-2期末考试解答.pdf","size":239020},{"path":"大一下/微积分I-2/期末试卷/答案/2022-2023学年第二学期微积分I-2期末考试解答.pdf","size":269382},{"path":"大一下/微积分I-2/期末试卷/答案/2023-2024学年第二学期微积分I-2期末考试解答.pdf","size":255643},{"path":"大一下/微积分I-2/期末试卷/答案/2024-2025学年第二学期微积分I-2期末考试解答.pdf","size":277544},{"path":"大一下/微积分I-2/期中考试注意事项.pdf","size":126197},{"path":"大一下/微积分I-2/期中试卷/13-14-2微积分I期中试卷解答.doc","size":538112},{"path":"大一下/微积分I-2/期中试卷/16-17-2微积分I期中试卷（A卷）解答.doc","size":678912},{"path":"大一下/微积分I-2/期中试卷/第八章-练习.pdf","size":156833},{"path":"大一下/微积分I-2/期中试卷/期中试卷/2023-2024学年第二学期微积分I-2期中考试.pdf","size":206615},{"path":"大一下/微积分I-2/期中试卷/期中试卷/2024-2025学年微积分I-2期中试卷解答.pdf","size":304085},{"path":"大一下/微积分I-2/期中试卷/期中试卷/2025-2026学年第二学期微积分I-2期中试卷评分标准.pdf","size":326764},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/2023-2024学年第二学期微积分I-2期中考试解答.pdf","size":262600},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2011 ） 答案.pdf","size":344712},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2012）答案.pdf","size":224891},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2013 ） 答案.pdf","size":469952},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2014 ） 答案.pdf","size":449333},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2015 ） 答案.pdf","size":502037},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2016 ） 答案.pdf","size":445096},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2017 ）答案.pdf","size":460401},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2018 )答案.pdf","size":346351},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2019 ) 答案.pdf","size":328590},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2021 )答案.pdf","size":524024},{"path":"大一下/微积分I-2/期中试卷/期中试卷/答案/微积分Ⅰ-2期中试卷（2022 )答案.pdf","size":270880},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2011） .pdf","size":197707},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2012 ).pdf","size":147055},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2013 ） .pdf","size":246645},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2014 ） .pdf","size":284610},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2015 ） .pdf","size":207712},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2016 ）.pdf","size":278531},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2017 ）.pdf","size":194901},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2018 ).docx","size":73253},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2019 ).pdf","size":238887},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2021 ).pdf","size":245479},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2022 ).pdf","size":205131},{"path":"大一下/微积分I-2/期中试卷/期中试卷/微积分Ⅰ-2期中试卷（2023 )含答案.pdf","size":429619},{"path":"大一下/微积分I-2/期中试卷/微积分 I-2 第八章历年题目.pdf","size":224517},{"path":"大一下/形势与政策2/【0907】《形势与政策》四个模块资料思考题.docx","size":46948},{"path":"大一下/形势与政策2/2024-2025 第二学期《形势与政策》四个模块资料思考题.docx","size":45897},{"path":"大一下/形势与政策2/形策答题助手_25-26第二学期_v2.0测试.zip","size":1172836},{"path":"大一下/中国近代史纲要/《中国近现代史纲要》课程短视频摄制实践要求.pdf","size":60505},{"path":"大一下/中国近代史纲要/课件/20260512-新民主主义革命伟大胜利.pdf","size":72534015},{"path":"大一下/中国近代史纲要/课件/第八讲  何为社会主义——新中国成立70余年社会主义建设道路探索(1).pdf","size":7146550},{"path":"大一下/中国近代史纲要/课件/第二讲   黄祸还是西祸：殖民主义与近代中国.pdf","size":4901622},{"path":"大一下/中国近代史纲要/课件/第六讲  近代以来中日关系的历史脉络——兼论“二战”的历史认识与评价问题(3).pdf","size":10071107},{"path":"大一下/中国近代史纲要/课件/第七讲 近代中国政党政治的发展逻辑——兼论国共两党的政治合作(1).pdf","size":16352636},{"path":"大一下/中国近代史纲要/课件/第三讲 近代国家的政治出路早期探索——兼论近代历史上民族主义新(5).pdf","size":7549633},{"path":"大一下/中国近代史纲要/课件/第四讲     民族危机与近代青年运动(1).pdf","size":22338907},{"path":"大一下/中国近代史纲要/课件/第五讲  进城与上山：中共革命道路的历史探索(1921-1949)(1).pdf","size":17676776},{"path":"大一下/中国近代史纲要/课件/第一讲   历史、历史观与近代历史(2).pdf","size":8053002},{"path":"大一下/中国近代史纲要/课件/论持久战.pdf","size":464056},{"path":"大一下/中国近代史纲要/课件/目前形势和我们的任务.pdf","size":220498},{"path":"大一下/中国近代史纲要/课件/厦门大学调查报告格式模板.pdf","size":151525},{"path":"大一下/中国近代史纲要/课件/中国百年历史变革的辩证法.pdf","size":195810},{"path":"大一下/中国近代史纲要/课件/中国革命战争的战略问题.pdf","size":428880},{"path":"大一下/中国近代史纲要/期末/2020-2021学年近现代史纲要试卷.doc","size":54272},{"path":"大一下/中国近代史纲要/期末/2021-2022学年近代史纲要试卷.doc","size":92672},{"path":"大一下/中国近代史纲要/期末/近代史复习(1).pdf","size":28160118},{"path":"大一下/中国近代史纲要/期末/近代史纲要 final.docx","size":25949},{"path":"大一下/中国近代史纲要/期末/近代史纲要课后习题答案(重要)(1).doc","size":57856},{"path":"大一下/中国近代史纲要/期末/近现代史材料题+答案(中编).doc","size":130048},{"path":"大一下/中国近代史纲要/期末/中国近代史纲要试题及答案(全套).doc","size":294400},{"path":"大一下/中国近代史纲要/期末/中国近代史课后答案.doc","size":130560},{"path":"大一下/中国近代史纲要/厦门大学调查报告格式模板.docx","size":556366},{"path":"大一下/中国近代史纲要/网络测试/1_4_近代史网络考试题库(2).docx","size":1878307},{"path":"大一下/中国近代史纲要/网络测试/近代史网络考试题库(1)_20211218164612.pdf","size":3826614},{"path":"大一下/中国近代史纲要/README.md","size":0},{"path":"大一下/README.md","size":0},{"path":"入学/附件：厦门大学2025本科生学业指南.pdf","size":51174702},{"path":"入学/五期宿舍（尺寸单位均为cm）(3) (1).pdf","size":4859211},{"path":"入学/README.md","size":0},{"path":"体育课/大学生体质健康/README.md","size":0},{"path":"体育课/乒乓球提高班/README.md","size":0},{"path":"体育课/蛙泳基础/README.md","size":0},{"path":"体育课/游泳基础一（蛙泳1）/3306f3a97eeee7895c8ee2b9402bc0d9.mp4","size":64212513},{"path":"体育课/游泳基础一（蛙泳1）/752485b11242b2646f5d533d6994e6b2.mp4","size":52061180},{"path":"体育课/游泳基础一（蛙泳1）/a5fcc8a98b6496608378fef2ff8a1ad5.mp4","size":87166701},{"path":"体育课/README.md","size":0},{"path":"校选课/分析性写作/03_阅读篇01 选择一个合适的研究话题.pptx","size":637772},{"path":"校选课/分析性写作/07_kalaOK_2.0.pptx","size":163553},{"path":"校选课/分析性写作/14_人机协作论文写作_全流程策略.pptx","size":147688},{"path":"校选课/分析性写作/15_期末论文要求.pptx","size":440414},{"path":"校选课/分析性写作/2026期末/《分析性写作》课程测验_更新版v2（原版）.docx","size":52408},{"path":"校选课/分析性写作/2026期末/15_课程论文使用人工智能工具声明.doc","size":12288},{"path":"校选课/分析性写作/2026期末/Why AI cannot do good science without humans.pdf","size":73195},{"path":"校选课/分析性写作/电子资源.docx","size":16076},{"path":"校选课/分析性写作/分析性写作_学生手册.docx","size":8588},{"path":"校选课/分析性写作/education-15-01304.pdf","size":274778},{"path":"校选课/分析性写作/README.md","size":151},{"path":"校选课/高等数学强化与提高/README.md","size":42},{"path":"校选课/金融学原理/!!!!!必读_《金融学基础》课程介绍与考核要求.pptx","size":43814},{"path":"校选课/金融学原理/第10次课 对冲、投保和分散化.ppt","size":1899008},{"path":"校选课/金融学原理/第11次课 投资组合选择.ppt","size":2654720},{"path":"校选课/金融学原理/第12次课 资本市场均衡.ppt","size":1185280},{"path":"校选课/金融学原理/第13次课 财务报表分析.pptx","size":2914058},{"path":"校选课/金融学原理/第14次课 投资项目分析.ppt","size":24355840},{"path":"校选课/金融学原理/第1次课 金融学概论.pdf","size":885152},{"path":"校选课/金融学原理/第2次课 跨期配置资源.ppt","size":2876928},{"path":"校选课/金融学原理/第3次课 居民户的储蓄和投资决策.ppt","size":4201984},{"path":"校选课/金融学原理/第4次课 市场估值原理.pptx","size":2528225},{"path":"校选课/金融学原理/第5次课 股票估值.pptx","size":2215707},{"path":"校选课/金融学原理/第6次课 固定收益证券.pptx","size":2668094},{"path":"校选课/金融学原理/第7次课 期货期权ABC.ppt","size":2230784},{"path":"校选课/金融学原理/第8次课 金融衍生品定价入门.pptx","size":456069},{"path":"校选课/金融学原理/第9次课 风险管理的原理.ppt","size":1152512},{"path":"校选课/金融学原理/金融学_2e_博迪_中文版_笔记和课后习题详解.pdf","size":34016020},{"path":"校选课/金融学原理/金融学_2e_博迪_中文版.pdf","size":21819067},{"path":"校选课/金融学原理/期末/《金融学》第2版_快速测查汇总.docx","size":9309588},{"path":"校选课/金融学原理/期末/《金融学》第2版_快速测查汇总(原).docx","size":1341186},{"path":"校选课/金融学原理/期末/《金融学基础》课程论文要求.docx","size":192541},{"path":"校选课/金融学原理/期末/《金融学基础》期末答题卷填写格式.pdf","size":227298},{"path":"校选课/金融学原理/阅读 AI炒股之1.pdf","size":1335991},{"path":"校选课/金融学原理/README.md","size":695},{"path":"校选课/README.md","size":0},{"path":"选课/附件1.厦门大学本科学生选课系统操作指南.pdf","size":1623456},{"path":"选课/附件2.2025级新生体育选课特别注意事项.docx","size":20995},{"path":"选课/附件3.厦门大学大学外语改革实施方案.pdf","size":176895},{"path":"选课/枝上进化论XMU2023级新生最全选课手册_V1.xlsx","size":1866463},{"path":"选课/枝上进化论XMU2024级新生最全选课手册_V1.xlsx","size":1713683},{"path":"选课/README.md","size":0},{"path":"英语/大英B/沟通胜任力I/25261 B1期末考察形式.doc","size":14848},{"path":"英语/大英B/沟通胜任力I/本学期进度-To Student.xlsx","size":12367},{"path":"英语/大英B/沟通胜任力I/配套阅读材料参考答案.pdf","size":196377},{"path":"英语/大英B/沟通胜任力I/学术英语视听说（上）答案(2).pdf","size":20618753},{"path":"英语/大英B/沟通胜任力I/M1/(学生用) M1S2 Text-Learn Languages with AI-Key.pdf","size":138198},{"path":"英语/大英B/沟通胜任力I/M1/(学生用) M1S2 Text-Learn Languages with AI.pdf","size":232091},{"path":"英语/大英B/沟通胜任力I/M1/M1S1 配套阅读材料Aristotle and the Modes of Appeal - 简化版_Exercises.docx","size":18455},{"path":"英语/大英B/沟通胜任力I/M1/M1S1 配套阅读材料Aristotle and the Modes of Appeal - 简化版.docx","size":18375},{"path":"英语/大英B/沟通胜任力I/M1/M1S1 配套阅读材料Aristotle and the Modes of Appeal - 简化版.pdf","size":151462},{"path":"英语/大英B/沟通胜任力I/M2/(学生用) M2S1 Text-Structured communication.pdf","size":272715},{"path":"英语/大英B/沟通胜任力I/M2/(学生用)M2S2 Text- Writing Successful Introductory Paragraphs.pdf","size":261421},{"path":"英语/大英B/沟通胜任力I/M2/(学生用)M2S3-Text-Write Powerful Essay Paragraphs with the PEEL Method.pdf","size":526707},{"path":"英语/大英B/沟通胜任力I/M2/(学生用)M2S4-Text-The Body of the Speech.pdf","size":570642},{"path":"英语/大英B/沟通胜任力I/M2/(学生用)M2S5 Text-The conclusion.pdf","size":361325},{"path":"英语/大英B/沟通胜任力I/M2/M2S1 Text-答案.docx","size":15251},{"path":"英语/大英B/沟通胜任力I/M2/M2S2 Key.docx","size":19798},{"path":"英语/大英B/沟通胜任力I/M2/M2S3-Text-Write Powerful Essay Paragraphs with the PEEL Method (纯答案）.docx","size":20117},{"path":"英语/大英B/沟通胜任力I/M2/M2S4 Text-The Body of the Speech-Key.docx","size":19619},{"path":"英语/大英B/沟通胜任力I/M2/M2S5 Text-答案.docx","size":14171},{"path":"英语/大英B/沟通胜任力I/M3/（学生版）M3S1_Text Developing arguments Claims 1120.pdf","size":274101},{"path":"英语/大英B/沟通胜任力I/M3/(学生用)M3S2_Text Developing arguments for the persuasive speech Evidence 1120.pdf","size":278985},{"path":"英语/大英B/沟通胜任力I/M3/M3S1 How to Write an Effective Claim 学生版.pdf","size":439064},{"path":"英语/大英B/沟通胜任力I/M3/M3S1-Key.docx","size":17778},{"path":"英语/大英B/沟通胜任力I/M3/M3S2-Key.docx","size":15076},{"path":"英语/大英B/沟通胜任力I/M3/M3S3 Text (学生用)Developing Arguments Part III Warrant-updated.pdf","size":251712},{"path":"英语/大英B/沟通胜任力I/M3/M3S3-Key.docx","size":13855},{"path":"英语/大英B/沟通胜任力I/M3/M3S4_Text_Coherence in writing.pdf","size":1351102},{"path":"英语/大英B/沟通胜任力I/M3/M3S4_Text_Key .pdf","size":138414},{"path":"英语/大英B/沟通胜任力I/README.md","size":0},{"path":"英语/大英B/沟通胜任力I/Sample/M2_Sample 1_IELTS1_好.docx","size":13381},{"path":"英语/大英B/沟通胜任力I/Sample/M2_Sample 3_IELTS_好.doc","size":27648},{"path":"英语/大英B/沟通胜任力I/Sample/M2_Sample 5_IELTS_好.docx","size":16111},{"path":"英语/大英B/沟通胜任力I/Sample/M2_Sample 5_IELTS_好.pdf","size":101044},{"path":"英语/大英B/沟通胜任力I/Sample/M2_Sample 8_IELTS_好.docx","size":16121},{"path":"英语/大英B/沟通胜任力I/Sample/M2_Sample 8_IELTS_好.pdf","size":125384},{"path":"英语/大英B/沟通胜任力I/Sir Robinson TED talk.mp4","size":62041664},{"path":"英语/大英B/沟通胜任力II/期末cross-culture play/案例修咖啡机(分析不完美).pdf","size":14334928},{"path":"英语/大英B/沟通胜任力II/期末cross-culture play/沟通II期末考核方式.docx","size":84985},{"path":"英语/大英B/沟通胜任力II/期末cross-culture play/跨文化大赛案例述评 模板.docx","size":25784},{"path":"英语/大英B/沟通胜任力II/期末cross-culture play/期末考察方式及评分标准0526.docx","size":19608},{"path":"英语/大英B/沟通胜任力II/期末cross-culture play/Case+study+3+A+coffee+machine.docx","size":18891},{"path":"英语/大英B/沟通胜任力II/新时代学术英语视听说（下）答案U1-6.pdf","size":6502257},{"path":"英语/大英B/沟通胜任力II/新时代学术英语视听说（下）答案U7-8.pdf","size":2150636},{"path":"英语/大英B/沟通胜任力II/M1/M1S1 Text & exercise (给学生) 0301.pdf","size":314443},{"path":"英语/大英B/沟通胜任力II/M1/M1S1 Text & exercise & keys-Key.docx","size":16658},{"path":"英语/大英B/沟通胜任力II/M1/M1S2 Resume and cover letter (学生用).pdf","size":648101},{"path":"英语/大英B/沟通胜任力II/M1/M1S2 Resume and cover letter-Key-Updated20260413.docx","size":35205},{"path":"英语/大英B/沟通胜任力II/M1/M1S2 Resume and cover letter-Key.docx","size":19841},{"path":"英语/大英B/沟通胜任力II/M1/M1S3 Text & exercise & keys-Key.docx","size":19304},{"path":"英语/大英B/沟通胜任力II/M1/M1S3 Text & exercise（给学生）.pdf","size":914550},{"path":"英语/大英B/沟通胜任力II/M1/M1S4 Text & Exercise-What Is Active Listening (给学生).pdf","size":323894},{"path":"英语/大英B/沟通胜任力II/M1/M1S4-Key.docx","size":17729},{"path":"英语/大英B/沟通胜任力II/M1/M1S5 Business Presentation（给学生）.pdf","size":361930},{"path":"英语/大英B/沟通胜任力II/M1/M1S5-Key.docx","size":16024},{"path":"英语/大英B/沟通胜任力II/M2/Cultural Intelligence（给学生）.pdf","size":414704},{"path":"英语/大英B/沟通胜任力II/M2/M2S1 Cultural Intelligence-Key.docx","size":21891},{"path":"英语/大英B/沟通胜任力II/M2/M2S2 Culture dimensions (for students 带水印).pdf","size":322573},{"path":"英语/大英B/沟通胜任力II/M2/M2S2 culture dimensions (for teachers)-Key.docx","size":17064},{"path":"英语/大英B/沟通胜任力II/M2/M2S3 Value orientations theory (for students 带水印).pdf","size":301576},{"path":"英语/大英B/沟通胜任力II/M2/M2S3 Value orientations theory (for teachers)-Key.docx","size":16409},{"path":"英语/大英C/README.md","size":67},{"path":"README.md","size":207}];
+    const API_TREE = "https://api.github.com/repos/" + REPO + "/git/trees/" + BRANCH + "?recursive=1";
+    const RAW_BASE = "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/";
+    const GITHUB_BASE = "https://github.com/" + REPO + "/blob/" + BRANCH + "/";
+
+    const typeGroups = [
+      { id: "all", label: "全部", extensions: [] },
+      { id: "office", label: "Office", extensions: ["ppt", "pptx", "doc", "docx", "xls", "xlsx"] },
+      { id: "pdf", label: "PDF", extensions: ["pdf"] },
+      { id: "media", label: "媒体", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "mp4", "webm", "mov"] },
+      { id: "text", label: "文本", extensions: ["md", "txt", "c", "cpp", "h", "py", "js", "json", "csv", "html", "css"] },
+      { id: "archive", label: "压缩包", extensions: ["zip", "rar", "7z"] }
+    ];
+
+    const state = {
+      files: EMBEDDED_FILES,
+      query: "",
+      filter: "all",
+      selectedPath: ""
+    };
+
+    const els = {
+      filters: document.querySelector("#filters"),
+      fileTree: document.querySelector("#fileTree"),
+      status: document.querySelector("#status"),
+      search: document.querySelector("#searchInput"),
+      refresh: document.querySelector("#refreshBtn"),
+      previewName: document.querySelector("#previewName"),
+      previewPath: document.querySelector("#previewPath"),
+      previewActions: document.querySelector("#previewActions"),
+      viewer: document.querySelector("#viewer")
+    };
+
+    function icon(name) {
+      const icons = {
+        file: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/>',
+        folder: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M3 6.5A2.5 2.5 0 0 1 5.5 4h4l2 2.5h7A2.5 2.5 0 0 1 21 9v8.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
+        pdf: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M7 15h2.1a1.6 1.6 0 0 0 0-3.2H7V17m6-5.2V17h1.4a2.6 2.6 0 0 0 0-5.2H13m5 0h3M18 14h2"/>',
+        office: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M4 4.5 13 2l7 2.5v15L13 22l-9-2.5zM13 2v20M8 8h3m-3 4h3m-3 4h3"/>',
+        image: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM8.5 9.5h.01M20 16l-4.5-4.5L6 21"/>',
+        video: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M5 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm12 4 4-2v10l-4-2"/>',
+        text: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M4 4h16M4 9h16M4 14h11M4 19h8"/>',
+        download: '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 5-5m-5 5-5-5M4 21h16"/>',
+        external: '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 3h7v7m0-7-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/>',
+        chevron: '<path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/>'
+      };
+      return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (icons[name] || icons.file) + '</svg>';
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function fileName(path) {
+      return path.split("/").pop();
+    }
+
+    function extension(path) {
+      const name = fileName(path);
+      const index = name.lastIndexOf(".");
+      return index >= 0 ? name.slice(index + 1).toLowerCase() : "";
+    }
+
+    function fileKind(path) {
+      const ext = extension(path);
+      if (ext === "pdf") return "pdf";
+      if (["ppt", "pptx", "doc", "docx", "xls", "xlsx"].includes(ext)) return "office";
+      if (["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext)) return "image";
+      if (["mp4", "webm", "mov"].includes(ext)) return "video";
+      if (["md", "txt", "c", "cpp", "h", "py", "js", "json", "csv", "html", "css"].includes(ext)) return "text";
+      if (["zip", "rar", "7z", "exe"].includes(ext)) return "download";
+      return "file";
+    }
+
+    function rawUrl(path) {
+      return RAW_BASE + path.split("/").map(encodeURIComponent).join("/");
+    }
+
+    function localUrl(path) {
+      return path.split("/").map(encodeURIComponent).join("/");
+    }
+
+    function githubUrl(path) {
+      return GITHUB_BASE + path.split("/").map(encodeURIComponent).join("/");
+    }
+
+    function officeUrl(path) {
+      return "https://view.officeapps.live.com/op/embed.aspx?src=" + encodeURIComponent(rawUrl(path));
+    }
+
+    function officeFullUrl(path) {
+      return "https://view.officeapps.live.com/op/view.aspx?src=" + encodeURIComponent(rawUrl(path));
+    }
+
+    function pdfViewerUrl(path) {
+      return localUrl(path);
+    }
+
+    function fallbackPreviewUrl(path) {
+      return fileKind(path) === "office" ? officeFullUrl(path) : githubUrl(path);
+    }
+
+    function formatSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return "";
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+      }
+      return size.toFixed(size >= 10 || unit === 0 ? 0 : 1) + " " + units[unit];
+    }
+
+    function renderFilters() {
+      els.filters.innerHTML = typeGroups.map((group) =>
+        '<button class="chip' + (state.filter === group.id ? ' active' : '') + '" type="button" data-filter="' + group.id + '">' + group.label + '</button>'
+      ).join("");
+    }
+
+    function getFilteredFiles() {
+      const query = state.query.trim().toLowerCase();
+      const group = typeGroups.find((item) => item.id === state.filter);
+      return state.files.filter((file) => {
+        const ext = extension(file.path);
+        const matchesFilter = !group || group.id === "all" || group.extensions.includes(ext);
+        const matchesQuery = !query || file.path.toLowerCase().includes(query) || ext.includes(query);
+        return matchesFilter && matchesQuery;
+      });
+    }
+
+    function createTree(files) {
+      const root = { name: "", folders: new Map(), files: [], count: 0 };
+      for (const file of files) {
+        const parts = file.path.split("/");
+        const name = parts.pop();
+        let node = root;
+        node.count += 1;
+        for (const part of parts) {
+          if (!node.folders.has(part)) {
+            node.folders.set(part, { name: part, folders: new Map(), files: [], count: 0 });
+          }
+          node = node.folders.get(part);
+          node.count += 1;
+        }
+        node.files.push({ ...file, name });
+      }
+      return root;
+    }
+
+    function renderFile(file) {
+      const kind = fileKind(file.path);
+      const meta = [extension(file.path).toUpperCase() || "FILE", formatSize(file.size)]
+        .filter(Boolean)
+        .join(" · ");
+      return [
+        '<button class="file-row' + (state.selectedPath === file.path ? ' active' : '') + '" type="button" data-path="' + escapeHtml(file.path) + '" title="' + escapeHtml(file.path) + '">',
+        '<span class="file-icon">' + icon(kind === "download" ? "file" : kind) + '</span>',
+        '<span><span class="file-name">' + escapeHtml(file.name || fileName(file.path)) + '</span>',
+        '<span class="file-meta">' + escapeHtml(meta) + '</span></span>',
+        '</button>'
+      ].join("");
+    }
+
+    function renderFolder(node, depth = 0) {
+      const open = state.query || depth === 0 ? " open" : "";
+      const folders = Array.from(node.folders.values())
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map((folder) => renderFolder(folder, depth + 1))
+        .join("");
+      const files = node.files
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map(renderFile)
+        .join("");
+      return [
+        '<details class="folder"' + open + '>',
+        '<summary class="folder-summary">',
+        '<span class="chevron">' + icon("chevron") + '</span>',
+        '<span class="folder-name"><span class="folder-icon">' + icon("folder") + '</span><span class="folder-text">' + escapeHtml(node.name) + '</span></span>',
+        '<span class="folder-count">' + node.count + '</span>',
+        '</summary>',
+        '<div class="folder-children">' + folders + files + '</div>',
+        '</details>'
+      ].join("");
+    }
+
+    function renderTree() {
+      const files = getFilteredFiles();
+      const tree = createTree(files);
+      const folders = Array.from(tree.folders.values())
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map((folder) => renderFolder(folder, 0))
+        .join("");
+      const rootFiles = tree.files.map(renderFile).join("");
+
+      els.fileTree.innerHTML = files.length
+        ? folders + rootFiles
+        : '<div class="notice"><h2>没有匹配的文件</h2><p>换一个关键词或文件类型试试。</p></div>';
+
+      els.status.innerHTML = files.length
+        ? '显示 <strong>' + files.length + '</strong> 个文件，共 <strong>' + state.files.length + '</strong> 个；索引生成于 ' + new Date(GENERATED_AT).toLocaleString()
+        : '没有匹配的文件，共 <strong>' + state.files.length + '</strong> 个';
+    }
+
+    function renderActions(file) {
+      if (!file) {
+        els.previewActions.innerHTML = "";
+        return;
+      }
+
+      const raw = rawUrl(file.path);
+      const local = localUrl(file.path);
+      const git = githubUrl(file.path);
+      const kind = fileKind(file.path);
+      const actions = [
+        '<a class="text-button primary" href="' + local + '" target="_blank" rel="noreferrer">' + icon("download") + '<span>下载</span></a>',
+        '<a class="text-button" href="' + git + '" target="_blank" rel="noreferrer">' + icon("external") + '<span>GitHub</span></a>'
+      ];
+      if (kind === "office" || kind === "pdf") {
+        actions.unshift('<a class="text-button" href="' + fallbackPreviewUrl(file.path) + '" target="_blank" rel="noreferrer">' + icon("external") + '<span>备用预览</span></a>');
+      }
+      els.previewActions.innerHTML = actions.join("");
+    }
+
+    function renderNotice(file, title, message, buttons = []) {
+      const buttonHtml = buttons.map((button) =>
+        '<a class="text-button' + (button.primary ? ' primary' : '') + '" href="' + button.href + '" target="_blank" rel="noreferrer">' + icon(button.icon || "external") + '<span>' + escapeHtml(button.label) + '</span></a>'
+      ).join("");
+      els.viewer.innerHTML = '<div class="notice">' + icon(fileKind(file.path) === "download" ? "download" : "file") + '<h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(message) + '</p><div class="notice-actions">' + buttonHtml + '</div></div>';
+    }
+
+    async function renderTextPreview(file) {
+      const response = await fetch(rawUrl(file.path));
+      if (!response.ok) throw new Error("读取文本失败：" + response.status);
+      const text = await response.text();
+      els.viewer.innerHTML = '<div class="viewer-frame"><pre class="text-preview">' + escapeHtml(text) + '</pre></div>';
+    }
+
+    async function selectFile(path) {
+      const file = state.files.find((item) => item.path === path);
+      if (!file) return;
+
+      state.selectedPath = path;
+      renderTree();
+      renderActions(file);
+
+      els.previewName.textContent = fileName(file.path);
+      els.previewPath.textContent = file.path;
+      const kind = fileKind(file.path);
+      const raw = rawUrl(file.path);
+      const local = localUrl(file.path);
+
+      try {
+        if (kind === "pdf") {
+          els.viewer.innerHTML = '<div class="viewer-frame"><iframe title="' + escapeHtml(fileName(file.path)) + '" src="' + pdfViewerUrl(file.path) + '"></iframe></div>';
+        } else if (kind === "office") {
+          els.viewer.innerHTML = '<div class="viewer-frame"><iframe title="' + escapeHtml(fileName(file.path)) + '" src="' + officeUrl(file.path) + '"></iframe></div>';
+        } else if (kind === "image") {
+          els.viewer.innerHTML = '<div class="viewer-frame"><img alt="' + escapeHtml(fileName(file.path)) + '" src="' + local + '"></div>';
+        } else if (kind === "video") {
+          els.viewer.innerHTML = '<div class="viewer-frame"><video controls preload="metadata" src="' + local + '"></video></div>';
+        } else if (kind === "text") {
+          els.viewer.innerHTML = '<div class="notice">' + icon("text") + '<h2>正在读取文本...</h2><p>稍等片刻。</p></div>';
+          await renderTextPreview(file);
+        } else {
+          renderNotice(file, "此类型暂不支持内嵌预览", "可以直接下载，也可以到 GitHub 查看文件详情。", [
+            { label: "下载", href: raw, icon: "download", primary: true },
+            { label: "GitHub", href: githubUrl(file.path), icon: "external" }
+          ]);
+        }
+      } catch (error) {
+        renderNotice(file, "预览加载失败", error.message || "在线预览服务暂时不可用，可以尝试下载或使用备用预览。", [
+          { label: "下载", href: raw, icon: "download", primary: true },
+          { label: "备用预览", href: fallbackPreviewUrl(file.path), icon: "external" }
+        ]);
+      }
+    }
+
+    async function refreshFromGitHub() {
+      els.status.textContent = "正在从 GitHub 刷新文件列表...";
+      const response = await fetch(API_TREE + "&t=" + Date.now());
+      if (!response.ok) throw new Error("GitHub API 返回 " + response.status);
+      const data = await response.json();
+      state.files = (data.tree || [])
+        .filter((item) => item.type === "blob" && !item.path.startsWith(".git") && fileName(item.path) !== "index.html")
+        .map((item) => ({ path: item.path, size: item.size || 0 }))
+        .sort((a, b) => a.path.localeCompare(b.path, "zh-Hans-CN"));
+      state.selectedPath = "";
+      els.previewName.textContent = "选择一个文件开始预览";
+      els.previewPath.textContent = "已从 GitHub 刷新目录；页面仍不会自动打开文件。";
+      els.previewActions.innerHTML = "";
+      renderTree();
+    }
+
+    els.filters.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-filter]");
+      if (!button) return;
+      state.filter = button.dataset.filter;
+      renderFilters();
+      renderTree();
+    });
+
+    els.fileTree.addEventListener("click", (event) => {
+      const row = event.target.closest("[data-path]");
+      if (row) selectFile(row.dataset.path);
+    });
+
+    els.search.addEventListener("input", (event) => {
+      state.query = event.target.value;
+      renderTree();
+    });
+
+    els.refresh.addEventListener("click", () => {
+      refreshFromGitHub().catch((error) => {
+        els.status.textContent = "在线刷新失败：" + (error.message || "请检查网络连接");
+      });
+    });
+
+    renderFilters();
+    renderTree();
+  </script>
+</body>
+</html>
